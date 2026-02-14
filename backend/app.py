@@ -40,6 +40,14 @@ CORS(app, resources={
     }
 })
 
+# NUCLEAR CORS FIX: Manually add CORS headers to ALL responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 # Configure APIs
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -553,8 +561,10 @@ def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_i
 # API ROUTES - PROFILE (EXISTING)
 # ============================================================================
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
+    if request.method == 'OPTIONS':
+        return '', 204
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
@@ -563,9 +573,11 @@ def health_check():
         'openai_configured': bool(OPENAI_API_KEY)
     })
 
-@app.route('/api/questionnaire', methods=['POST'])
+@app.route('/api/questionnaire', methods=['POST', 'OPTIONS'])
 def save_questionnaire():
     """Save questionnaire answers"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         data = request.json
         
@@ -598,9 +610,11 @@ def save_questionnaire():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/questionnaire/<questionnaire_id>', methods=['GET'])
+@app.route('/api/questionnaire/<questionnaire_id>', methods=['GET', 'OPTIONS'])
 def get_questionnaire(questionnaire_id):
     """Get questionnaire by ID"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         filename = f"questionnaire_{questionnaire_id}.json"
         data = load_data(filename)
@@ -613,9 +627,11 @@ def get_questionnaire(questionnaire_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/generate-profile', methods=['POST'])
+@app.route('/api/generate-profile', methods=['POST', 'OPTIONS'])
 def generate_profile():
     """Generate target audience profile from questionnaire"""
+    if request.method == 'OPTIONS':
+        return '', 204
     print(f"[DEBUG] /api/generate-profile called")
     
     try:
@@ -685,9 +701,11 @@ def generate_profile():
         else:
             return jsonify({'error': f'There was an issue generating your profile: {error_msg}'}), 500
 
-@app.route('/api/profile/<profile_id>', methods=['GET'])
+@app.route('/api/profile/<profile_id>', methods=['GET', 'OPTIONS'])
 def get_profile(profile_id):
     """Get generated profile by ID"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         filename = f"profile_{profile_id}.json"
         data = load_data(filename)
@@ -700,9 +718,11 @@ def get_profile(profile_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/user/<user_id>/profiles', methods=['GET'])
+@app.route('/api/user/<user_id>/profiles', methods=['GET', 'OPTIONS'])
 def get_user_profiles(user_id):
     """Get all profiles for a user"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         profiles = []
         for filename in os.listdir(DATA_DIR):
@@ -730,9 +750,11 @@ def get_user_profiles(user_id):
 # API ROUTES - YOUTUBE PROCESSING (NEW)
 # ============================================================================
 
-@app.route('/api/process-episode', methods=['POST'])
+@app.route('/api/process-episode', methods=['POST', 'OPTIONS'])
 def process_episode():
     """Start processing a YouTube episode"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         data = request.json
         
@@ -789,9 +811,11 @@ def process_episode():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/job/<job_id>', methods=['GET'])
+@app.route('/api/job/<job_id>', methods=['GET', 'OPTIONS'])
 def get_job_status(job_id):
     """Get job status and results"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
         
@@ -826,9 +850,11 @@ def get_job_status(job_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/analyze-clips', methods=['POST'])
+@app.route('/api/analyze-clips', methods=['POST', 'OPTIONS'])
 def analyze_clips():
     """Analyze clips from a transcript"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         data = request.json
         job_id = data.get('jobId')
@@ -877,9 +903,11 @@ def analyze_clips():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/transcript/<video_id>', methods=['GET'])
+@app.route('/api/transcript/<video_id>', methods=['GET', 'OPTIONS'])
 def get_transcript(video_id):
     """Get cached transcript for a video"""
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         transcript_data = load_data(f"transcript_{video_id}.json", TRANSCRIPTS_DIR)
         
