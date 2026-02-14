@@ -783,12 +783,14 @@ def process_episode():
         return '', 204
     try:
         data = request.json
+        print(f"[DEBUG] /api/process-episode called with data: {data}")
         
         # Validate required fields
         youtube_url = data.get('youtubeUrl')
         podcast_name = data.get('podcastName')
         profile_id = data.get('profileId')
         user_id = data.get('userId')
+        print(f"[DEBUG] youtube_url: {youtube_url}, podcast_name: {podcast_name}, profile_id: {profile_id}")
         
         if not youtube_url:
             return jsonify({'error': 'YouTube URL is required'}), 400
