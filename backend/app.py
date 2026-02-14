@@ -19,7 +19,26 @@ from openai import OpenAI
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(','))
+
+# Parse CORS origins from env var (comma-separated) or use defaults
+cors_origins_env = os.getenv('CORS_ORIGINS')
+if cors_origins_env:
+    cors_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+else:
+    # Default origins for development and production
+    cors_origins = [
+        'http://localhost:3000',
+        'https://segments.pursuepodcasting.com'
+    ]
+
+# Apply CORS to all /api/* routes
+CORS(app, resources={
+    r"/api/*": {
+        "origins": cors_origins,
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Configure APIs
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
