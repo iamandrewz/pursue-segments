@@ -12,8 +12,21 @@ import threading
 import time
 from datetime import datetime
 from dotenv import load_dotenv
-import google.generativeai as genai
-from openai import OpenAI
+
+# Optional imports - don't crash if missing
+try:
+    import google.generativeai as genai
+    GOOGLE_AI_AVAILABLE = True
+except ImportError:
+    GOOGLE_AI_AVAILABLE = False
+    print("[WARN] google.generativeai not available")
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("[WARN] openai not available")
 
 # Load environment variables
 load_dotenv()
@@ -48,21 +61,19 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
-# Configure APIs - with error handling
+# Configure APIs - lazy loading with error handling
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-# Initialize clients lazily to prevent startup crashes
 openai_client = None
 
-if GEMINI_API_KEY:
+if GOOGLE_AI_AVAILABLE and GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         print("[STARTUP] Gemini configured")
     except Exception as e:
         print(f"[STARTUP] Gemini config error: {e}")
 
-if OPENAI_API_KEY:
+if OPENAI_AVAILABLE and OPENAI_API_KEY:
     try:
         openai_client = OpenAI(api_key=OPENAI_API_KEY)
         print("[STARTUP] OpenAI client configured")
@@ -581,8 +592,10 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
+        'google_ai_available': GOOGLE_AI_AVAILABLE,
         'gemini_configured': bool(GEMINI_API_KEY),
-        'openai_configured': bool(OPENAI_API_KEY)
+        'openai_available': OPENAI_AVAILABLE,
+        'openai_configured': bool(OPENAI_API_KEY and openai_client is not None)
     })
 
 @app.route('/api/questionnaire', methods=['POST', 'OPTIONS'])
