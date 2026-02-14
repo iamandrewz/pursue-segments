@@ -49,11 +49,11 @@ export interface ProfileData {
 }
 
 // ============================================================================
-// YOUTUBE PROCESSING TYPES
+// FILE UPLOAD / EPISODE PROCESSING TYPES
 // ============================================================================
 
-export interface ProcessEpisodeRequest {
-  youtubeUrl: string;
+export interface ProcessEpisodeFileRequest {
+  file: File;
   podcastName: string;
   profileId?: string;
   userId?: string;
@@ -97,7 +97,7 @@ export interface ClipSuggestion {
   why_it_works: string;
 }
 
-export type JobStatus = 'queued' | 'downloading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
+export type JobStatus = 'queued' | 'uploading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
 
 export interface JobStatusResponse {
   jobId: string;

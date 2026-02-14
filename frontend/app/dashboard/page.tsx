@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -13,64 +13,67 @@ import {
   Share2,
   Sparkles,
   CheckCircle,
-  Youtube,
   AlertCircle,
   Clock,
   Play,
   History,
   Zap,
   Target,
-  Film
+  Film,
+  Video,
+  X,
+  FileVideo
 } from 'lucide-react';
-import { getProfile, processEpisode, getJobStatus } from '@/lib/api';
+import { getProfile, processEpisodeWithFile, getJobStatus } from '@/lib/api';
 import { ProfileData, JobStatusResponse } from '@/lib/types';
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
-function extractYouTubeId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\s?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB in bytes
+const ALLOWED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/quicktime', // .mov
+  'video/x-msvideo', // .avi
+  'video/x-matroska', // .mkv
+  'video/webm',
+];
+const ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function isValidYouTubeUrl(url: string): boolean {
-  if (!url.trim()) return false;
-  const pattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-  return pattern.test(url);
-}
-
-async function fetchYouTubeMetadata(videoId: string) {
-  try {
-    // Try oEmbed first (no API key needed)
-    const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        title: data.title,
-        author: data.author_name,
-        thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-        exists: true
-      };
-    }
-  } catch (e) {
-    console.error('Failed to fetch metadata:', e);
+function isValidVideoFile(file: File): { valid: boolean; error?: string } {
+  // Check file size
+  if (file.size > MAX_FILE_SIZE) {
+    return { 
+      valid: false, 
+      error: `File size exceeds 500MB limit. Your file is ${formatFileSize(file.size)}.` 
+    };
   }
+
+  // Check MIME type
+  if (ALLOWED_VIDEO_TYPES.includes(file.type)) {
+    return { valid: true };
+  }
+
+  // Check file extension as fallback
+  const fileName = file.name.toLowerCase();
+  const hasValidExtension = ALLOWED_VIDEO_EXTENSIONS.some(ext => fileName.endsWith(ext));
   
-  // Fallback to thumbnail only
-  return {
-    title: null,
-    author: null,
-    thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-    exists: true
+  if (hasValidExtension) {
+    return { valid: true };
+  }
+
+  return { 
+    valid: false, 
+    error: 'Invalid file type. Please upload a video file (.mp4, .mov, .avi, .mkv, .webm).' 
   };
 }
 
@@ -81,13 +84,14 @@ async function fetchYouTubeMetadata(videoId: string) {
 interface RecentEpisode {
   jobId: string;
   podcastName: string;
-  videoId: string;
+  videoId?: string;
+  fileName?: string;
   status: string;
   createdAt: string;
   clipCount?: number;
 }
 
-function RecentEpisodes({ onSelect }: { onSelect: (url: string) => void }) {
+function RecentEpisodes({ onSelect }: { onSelect: (file: File) => void }) {
   const [episodes, setEpisodes] = useState<RecentEpisode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
@@ -145,21 +149,14 @@ function RecentEpisodes({ onSelect }: { onSelect: (url: string) => void }) {
             onClick={() => handleViewResults(episode.jobId)}
           >
             <div className="flex items-start space-x-3">
-              <div className="relative w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-royal-900">
-                <img 
-                  src={`https://img.youtube.com/vi/${episode.videoId}/mqdefault.jpg`}
-                  alt="Thumbnail"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" fill="%23ffffff20"%3E%3Crect width="120" height="90"/%3E%3C/svg%3E';
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Play className="w-6 h-6 text-white" />
-                </div>
+              <div className="relative w-20 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-royal-900 flex items-center justify-center">
+                <FileVideo className="w-8 h-8 text-royal-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white font-medium truncate">{episode.podcastName}</p>
+                {episode.fileName && (
+                  <p className="text-sm text-gray-400 truncate">{episode.fileName}</p>
+                )}
                 <p className="text-sm text-gray-400">
                   {new Date(episode.createdAt).toLocaleDateString('en-US', { 
                     month: 'short', 
@@ -197,15 +194,15 @@ function RecentEpisodes({ onSelect }: { onSelect: (url: string) => void }) {
 function HowItWorks() {
   const steps = [
     {
-      icon: <Youtube className="w-6 h-6" />,
-      title: "Share Your Episode",
-      description: "Provide any public YouTube content URL. We support both youtube.com and youtu.be links.",
-      color: "text-red-400"
+      icon: <Upload className="w-6 h-6" />,
+      title: "Upload Your Episode",
+      description: "Select a video file from your computer. We support MP4, MOV, AVI, MKV, and WEBM formats up to 500MB.",
+      color: "text-blue-400"
     },
     {
       icon: <Target className="w-6 h-6" />,
       title: "Intelligent Analysis",
-      description: "Our system acquires, transcribes, and analyzes your episode with precision (~3 minutes).",
+      description: "Our system transcribes and analyzes your episode with precision (~3 minutes).",
       color: "text-purple-400"
     },
     {
@@ -243,84 +240,149 @@ function HowItWorks() {
 }
 
 // ============================================================================
-// URL PREVIEW COMPONENT
+// FILE PREVIEW COMPONENT
 // ============================================================================
 
-interface UrlPreviewProps {
-  videoId: string;
-  url: string;
+interface FilePreviewProps {
+  file: File;
   onClear: () => void;
 }
 
-function UrlPreview({ videoId, url, onClear }: UrlPreviewProps) {
-  const [metadata, setMetadata] = useState<{
-    title: string | null;
-    author: string | null;
-    thumbnail: string;
-    exists: boolean;
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+function FilePreview({ file, onClear }: FilePreviewProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchYouTubeMetadata(videoId).then((data) => {
-      setMetadata(data);
-      setIsLoading(false);
-    });
-  }, [videoId]);
-
-  if (isLoading) {
-    return (
-      <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/10">
-        <div className="flex items-center space-x-4">
-          <div className="w-32 h-20 rounded-lg bg-white/10 animate-pulse" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-white/10 rounded animate-pulse w-3/4" />
-            <div className="h-3 bg-white/10 rounded animate-pulse w-1/2" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+    // Create a temporary URL for the video file
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
 
   return (
     <div className="mt-4 p-4 rounded-xl bg-green-500/5 border border-green-500/20">
       <div className="flex items-start space-x-4">
-        <div className="relative w-32 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-royal-900">
-          <img 
-            src={metadata?.thumbnail || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
-            alt="Video thumbnail"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" fill="%23ffffff20"%3E%3Crect width="120" height="90"/%3E%3C/svg%3E';
-            }}
-          />
+        <div className="relative w-32 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-royal-900 flex items-center justify-center">
+          {previewUrl ? (
+            <video 
+              src={previewUrl} 
+              className="w-full h-full object-cover"
+              muted
+            />
+          ) : (
+            <FileVideo className="w-10 h-10 text-royal-400" />
+          )}
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <Play className="w-8 h-8 text-white drop-shadow-lg" />
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          {metadata?.title ? (
-            <h4 className="text-white font-medium line-clamp-2" title={metadata.title}>
-              {metadata.title}
-            </h4>
-          ) : (
-            <h4 className="text-white font-medium">YouTube Content</h4>
-          )}
-          {metadata?.author && (
-            <p className="text-sm text-gray-400 mt-1">{metadata.author}</p>
-          )}
+          <h4 className="text-white font-medium line-clamp-1" title={file.name}>
+            {file.name}
+          </h4>
+          <p className="text-sm text-gray-400 mt-1">{formatFileSize(file.size)}</p>
           <div className="flex items-center space-x-2 mt-2">
             <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-400 bg-green-400/10 rounded">
               <CheckCircle className="w-3 h-3 mr-1" />
-              Valid URL
+              Valid Video
             </span>
             <button
               onClick={onClear}
               className="text-xs text-gray-400 hover:text-white transition-colors"
             >
-              Clear
+              Remove
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// DRAG AND DROP UPLOAD COMPONENT
+// ============================================================================
+
+interface FileUploadZoneProps {
+  onFileSelect: (file: File) => void;
+  selectedFile: File | null;
+}
+
+function FileUploadZone({ onFileSelect, selectedFile }: FileUploadZoneProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      onFileSelect(files[0]);
+    }
+  };
+
+  const handleClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      onFileSelect(files[0]);
+    }
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`
+        relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+        transition-all duration-200
+        ${isDragging 
+          ? 'border-royal-500 bg-royal-500/10' 
+          : 'border-white/20 bg-white/5 hover:border-white/40 hover:bg-white/10'
+        }
+      `}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".mp4,.mov,.avi,.mkv,.webm,video/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      
+      <div className="flex flex-col items-center space-y-3">
+        <div className={`
+          w-16 h-16 rounded-full flex items-center justify-center
+          ${isDragging ? 'bg-royal-500/20' : 'bg-white/10'}
+        `}>
+          <Upload className={`w-8 h-8 ${isDragging ? 'text-royal-400' : 'text-gray-400'}`} />
+        </div>
+        
+        <div>
+          <p className="text-white font-medium">
+            {isDragging ? 'Drop your video here' : 'Click or drag video to upload'}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Supports MP4, MOV, AVI, MKV, WEBM up to 500MB
+          </p>
         </div>
       </div>
     </div>
@@ -337,23 +399,21 @@ function DashboardContent() {
   const profileId = searchParams.get('profileId');
   
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // TEMP: Bypass loading state for testing
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   
   // Upload form state
-  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [urlError, setUrlError] = useState('');
-  const [videoId, setVideoId] = useState<string | null>(null);
+  const [fileError, setFileError] = useState('');
 
   // TEMP: Bypass profile loading for testing
   useEffect(() => {
     if (profileId) {
       loadProfile();
     }
-    // else: remain not loading, show form immediately
   }, [profileId]);
 
   const loadProfile = async () => {
@@ -389,35 +449,33 @@ function DashboardContent() {
     }
   };
 
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const url = e.target.value;
-    setYoutubeUrl(url);
+  const handleFileSelect = (file: File) => {
     setUploadError('');
+    setFileError('');
     
-    if (!url.trim()) {
-      setUrlError('');
-      setVideoId(null);
+    const validation = isValidVideoFile(file);
+    if (!validation.valid) {
+      setFileError(validation.error || 'Invalid file');
+      setSelectedFile(null);
       return;
     }
     
-    if (!isValidYouTubeUrl(url)) {
-      setUrlError('Please enter a valid YouTube URL (youtube.com or youtu.be)');
-      setVideoId(null);
-    } else {
-      setUrlError('');
-      const extractedId = extractYouTubeId(url);
-      setVideoId(extractedId);
-    }
+    setSelectedFile(file);
   };
 
-  const handleClearUrl = () => {
-    setYoutubeUrl('');
-    setVideoId(null);
-    setUrlError('');
+  const handleClearFile = () => {
+    setSelectedFile(null);
+    setFileError('');
     setUploadError('');
   };
 
-  const saveToRecentEpisodes = (jobData: { jobId: string; podcastName: string; videoId: string; status: string; createdAt: string }) => {
+  const saveToRecentEpisodes = (jobData: { 
+    jobId: string; 
+    podcastName: string; 
+    fileName: string; 
+    status: string; 
+    createdAt: string 
+  }) => {
     try {
       const stored = localStorage.getItem('recentEpisodes');
       const episodes: RecentEpisode[] = stored ? JSON.parse(stored) : [];
@@ -426,7 +484,7 @@ function DashboardContent() {
       episodes.unshift({
         jobId: jobData.jobId,
         podcastName: jobData.podcastName,
-        videoId: jobData.videoId,
+        fileName: jobData.fileName,
         status: jobData.status,
         createdAt: jobData.createdAt
       });
@@ -442,14 +500,14 @@ function DashboardContent() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isValidYouTubeUrl(youtubeUrl)) {
-      setUrlError('Please enter a valid YouTube URL');
+    if (!selectedFile) {
+      setFileError('Please select a video file');
       return;
     }
 
-    const extractedId = extractYouTubeId(youtubeUrl);
-    if (!extractedId) {
-      setUrlError('Could not extract video ID from URL');
+    const validation = isValidVideoFile(selectedFile);
+    if (!validation.valid) {
+      setFileError(validation.error || 'Invalid file');
       return;
     }
 
@@ -457,8 +515,8 @@ function DashboardContent() {
     setUploadError('');
 
     try {
-      const response = await processEpisode({
-        youtubeUrl: youtubeUrl.trim(),
+      const response = await processEpisodeWithFile({
+        file: selectedFile,
         podcastName: profile?.podcastName || 'My Podcast',
         profileId: profileId || undefined,
       });
@@ -467,7 +525,7 @@ function DashboardContent() {
       saveToRecentEpisodes({
         jobId: response.jobId,
         podcastName: profile?.podcastName || 'My Podcast',
-        videoId: extractedId,
+        fileName: selectedFile.name,
         status: 'queued',
         createdAt: new Date().toISOString()
       });
@@ -480,39 +538,6 @@ function DashboardContent() {
       setIsUploading(false);
     }
   };
-
-  // TEMP: Bypass profile loading checks for testing
-  // if (isLoading) {
-  //   return (
-  //     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center">
-  //       <div className="text-center">
-  //         <Loader2 className="w-12 h-12 text-royal-400 mx-auto animate-spin mb-4" />
-  //         <p className="text-gray-400">Accessing your profile...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
-  // if (error) {
-  //   return (
-  //     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center px-4">
-  //       <div className="text-center max-w-md">
-  //         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-  //           <FileText className="w-8 h-8 text-red-400" />
-  //         </div>
-  //         <h2 className="text-xl font-bold text-white mb-2">Error Loading Profile</h2>
-  //         <p className="text-gray-400 mb-6">{error}</p>
-  //         <Link 
-  //           href="/questionnaire"
-  //           className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
-  //         >
-  //           <ArrowLeft className="w-5 h-5" />
-  //           <span>Begin New Consultation</span>
-  //         </Link>
-  //       </div>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900">
@@ -546,7 +571,7 @@ function DashboardContent() {
               Refine Your Episode
             </h1>
             <p className="text-gray-400 max-w-lg mx-auto">
-              Share a YouTube URL and our intelligent system will identify the finest 8-20 minute segments 
+              Upload a video file and our intelligent system will identify the finest 8-20 minute segments 
               curated for your audience.
             </p>
           </div>
@@ -554,65 +579,39 @@ function DashboardContent() {
           {/* Submit Episode Form */}
           <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-royal-800/50 to-royal-900/50 border border-royal-700/30">
             <form onSubmit={handleUpload} className="space-y-4">
-              {/* URL Input */}
+              {/* File Upload Zone */}
               <div>
-                <label htmlFor="youtubeUrl" className="block text-sm font-medium text-gray-300 mb-2">
-                  YouTube URL
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Upload Video File
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Youtube className="w-5 h-5 text-red-500" />
-                  </div>
-                  <input
-                    type="url"
-                    id="youtubeUrl"
-                    value={youtubeUrl}
-                    onChange={handleUrlChange}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className={`w-full pl-12 pr-12 py-4 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all text-base ${
-                      urlError 
-                        ? 'border-red-500/50 focus:ring-red-500/50' 
-                        : videoId
-                        ? 'border-green-500/50 focus:ring-green-500/50'
-                        : 'border-white/10 focus:ring-royal-500/50 focus:border-royal-500/50'
-                    }`}
-                    disabled={isUploading}
+                
+                {!selectedFile ? (
+                  <FileUploadZone 
+                    onFileSelect={handleFileSelect} 
+                    selectedFile={selectedFile}
                   />
-                  {youtubeUrl && (
-                    <button
-                      type="button"
-                      onClick={handleClearUrl}
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white transition-colors"
-                    >
-                      <AlertCircle className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
+                ) : (
+                  <FilePreview 
+                    file={selectedFile} 
+                    onClear={handleClearFile}
+                  />
+                )}
                 
                 {/* Error Message */}
-                {urlError && (
+                {fileError && (
                   <p className="mt-2 text-sm text-red-400 flex items-center animate-fadeIn">
                     <AlertCircle className="w-4 h-4 mr-1.5 flex-shrink-0" />
-                    {urlError}
+                    {fileError}
                   </p>
                 )}
                 
-                {/* Success/Hint Message */}
-                {!urlError && !videoId && (
+                {/* Hint Message */}
+                {!fileError && !selectedFile && (
                   <p className="mt-2 text-sm text-gray-500">
-                    Example: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+                    Maximum file size: 500MB
                   </p>
                 )}
               </div>
-
-              {/* URL Preview */}
-              {videoId && !urlError && (
-                <UrlPreview 
-                  videoId={videoId} 
-                  url={youtubeUrl}
-                  onClear={handleClearUrl}
-                />
-              )}
 
               {/* Upload Error */}
               {uploadError && (
@@ -633,13 +632,13 @@ function DashboardContent() {
                 </div>
                 <button
                   type="submit"
-                  disabled={isUploading || !youtubeUrl || !!urlError || !videoId}
+                  disabled={isUploading || !selectedFile || !!fileError}
                   className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-4 bg-royal-600 hover:bg-royal-500 disabled:bg-royal-800/50 disabled:text-royal-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all text-base"
                 >
                   {isUploading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Initiating...</span>
+                      <span>Uploading...</span>
                     </>
                   ) : (
                     <>
@@ -656,7 +655,7 @@ function DashboardContent() {
           <HowItWorks />
 
           {/* Recent Episodes */}
-          <RecentEpisodes onSelect={setYoutubeUrl} />
+          <RecentEpisodes onSelect={() => {}} />
 
           {/* Profile Section (if exists) */}
           {profile && (
@@ -729,27 +728,6 @@ function DashboardContent() {
               </div>
             </div>
           )}
-
-          {/* No Profile CTA - TEMPORARILY HIDDEN FOR TESTING */}
-          {/* {!profile && !profileId && (
-            <div className="mt-12 p-8 rounded-2xl bg-white/5 border border-white/10 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-royal-800/50 flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-royal-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Create Your Target Audience Profile</h3>
-              <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                Complete a 10-15 minute consultation to develop a detailed target audience profile. 
-                This enables our system to create refined segment recommendations tailored to your listeners.
-              </p>
-              <Link 
-                href="/questionnaire"
-                className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
-              >
-                <Sparkles className="w-5 h-5" />
-                <span>Begin Consultation</span>
-              </Link>
-            </div>
-          )} */}
         </div>
       </main>
     </div>

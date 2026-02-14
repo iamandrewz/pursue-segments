@@ -84,11 +84,11 @@ export async function getProfile(id: string) {
 }
 
 // ============================================================================
-// YOUTUBE PROCESSING API
+// FILE UPLOAD / EPISODE PROCESSING API
 // ============================================================================
 
-export interface ProcessEpisodeRequest {
-  youtubeUrl: string;
+export interface ProcessEpisodeFileRequest {
+  file: File;
   podcastName: string;
   profileId?: string;
   userId?: string;
@@ -100,26 +100,46 @@ export interface ProcessEpisodeResponse {
   message: string;
 }
 
-export async function processEpisode(data: ProcessEpisodeRequest): Promise<ProcessEpisodeResponse> {
+export async function processEpisodeWithFile(data: ProcessEpisodeFileRequest): Promise<ProcessEpisodeResponse> {
+  const formData = new FormData();
+  formData.append('video', data.file);
+  formData.append('podcastName', data.podcastName);
+  
+  if (data.profileId) {
+    formData.append('profileId', data.profileId);
+  }
+  
+  if (data.userId) {
+    formData.append('userId', data.userId);
+  }
+
   const response = await fetch(`${API_URL}/api/process-episode`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
+    body: formData,
+    // Note: Do NOT set Content-Type header - browser will set it with boundary
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to start episode processing');
+    let errorMessage = 'Failed to start episode processing';
+    try {
+      const error = await response.json();
+      errorMessage = error.error || errorMessage;
+    } catch {
+      errorMessage = `Server error: ${response.status} ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
 }
 
+// ============================================================================
+// JOB STATUS API
+// ============================================================================
+
 export interface JobStatusResponse {
   jobId: string;
-  status: 'queued' | 'downloading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
+  status: 'queued' | 'uploading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
   progressMessage: string;
   podcastName: string;
   createdAt: string;
