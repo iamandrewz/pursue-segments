@@ -384,6 +384,9 @@ def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
     
     output_path = os.path.join(output_dir, f"{video_id}.mp3")
     
+    # Path to cookies file (for YouTube authentication)
+    cookies_path = os.path.join(DATA_DIR, 'youtube.txt')
+    
     # yt-dlp command for audio-only download
     cmd = [
         'yt-dlp',
@@ -394,9 +397,15 @@ def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
         '--output', output_path,
         '--no-playlist',
         '--quiet',
-        '--no-warnings',
-        youtube_url
+        '--no-warnings'
     ]
+    
+    # Add cookies if file exists
+    if os.path.exists(cookies_path):
+        cmd.extend(['--cookies', cookies_path])
+        print(f"[DEBUG] Using cookies from {cookies_path}")
+    
+    cmd.append(youtube_url)
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
