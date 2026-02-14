@@ -948,6 +948,14 @@ def get_transcript(video_id):
 # MAIN
 # ============================================================================
 
+# Startup logging for Railway debugging
+print(f"[STARTUP] Flask app loading...")
+print(f"[STARTUP] PORT env: {os.getenv('PORT')}")
+print(f"[STARTUP] FLASK_PORT env: {os.getenv('FLASK_PORT')}")
+print(f"[STARTUP] DATA_DIR: {DATA_DIR}")
+print(f"[STARTUP] Gemini available: {GOOGLE_AI_AVAILABLE}")
+print(f"[STARTUP] OpenAI available: {OPENAI_AVAILABLE}")
+
 if __name__ == '__main__':
     # Railway provides PORT env var; fallback to 5001 for local dev
     port = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
