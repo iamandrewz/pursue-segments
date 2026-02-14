@@ -97,7 +97,7 @@ export interface ClipSuggestion {
   why_it_works: string;
 }
 
-export type JobStatus = 'queued' | 'uploading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
+export type JobStatus = 'queued' | 'downloading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
 
 export interface JobStatusResponse {
   jobId: string;
