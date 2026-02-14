@@ -306,7 +306,7 @@ export default function ResultsPage() {
           <div className="mb-8 p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center space-x-3">
             <CheckCircle className="w-5 h-5 text-green-400" />
             <span className="text-green-400">
-              Refinement complete. We have curated {job.clipCount} refined segment{job.clipCount !== 1 ? 's' : ''} for your episode.
+              Refinement complete. We have curated {job.clipCount ?? 0} refined segment{(job.clipCount ?? 0) !== 1 ? 's' : ''} for your episode.
             </span>
           </div>
 
@@ -321,7 +321,7 @@ export default function ResultsPage() {
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-1">{job.clipCount}</div>
+              <div className="text-2xl font-bold text-white mb-1">{job.clipCount ?? 0}</div>
               <div className="text-xs text-gray-400">Segments Curated</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
@@ -332,7 +332,7 @@ export default function ResultsPage() {
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
               <div className="text-2xl font-bold text-white mb-1">
-                {Math.round(job.clips.reduce((acc, clip) => acc + clip.duration_minutes, 0) / job.clipCount)}
+                {(job.clipCount && job.clipCount > 0) ? Math.round(job.clips.reduce((acc, clip) => acc + clip.duration_minutes, 0) / job.clipCount) : 0}
               </div>
               <div className="text-xs text-gray-400">Average Duration</div>
             </div>
