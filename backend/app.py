@@ -52,22 +52,22 @@ def after_request(response):
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-print(f"[STARTUP] GEMINI_API_KEY present: {bool(GEMINI_API_KEY)}")
-print(f"[STARTUP] OPENAI_API_KEY present: {bool(OPENAI_API_KEY)}")
+# Initialize clients lazily to prevent startup crashes
+openai_client = None
 
-try:
-    if GEMINI_API_KEY:
+if GEMINI_API_KEY:
+    try:
         genai.configure(api_key=GEMINI_API_KEY)
-        print("[STARTUP] Gemini configured successfully")
-except Exception as e:
-    print(f"[STARTUP] Gemini config error: {e}")
+        print("[STARTUP] Gemini configured")
+    except Exception as e:
+        print(f"[STARTUP] Gemini config error: {e}")
 
-try:
-    openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-    print(f"[STARTUP] OpenAI client: {openai_client is not None}")
-except Exception as e:
-    print(f"[STARTUP] OpenAI config error: {e}")
-    openai_client = None
+if OPENAI_API_KEY:
+    try:
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        print("[STARTUP] OpenAI client configured")
+    except Exception as e:
+        print(f"[STARTUP] OpenAI config error: {e}")
 
 # Data storage directories
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
