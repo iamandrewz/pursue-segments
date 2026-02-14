@@ -92,11 +92,11 @@ export default function QuestionnairePage() {
         if (errorText.includes('network') || errorText.includes('fetch')) {
           errorMessage = 'Connection issue. Please check your internet and try again.';
         } else if (errorText.includes('timeout') || errorText.includes('504')) {
-          errorMessage = 'Our AI is taking longer than usual. Please try again.';
+          errorMessage = 'Our system is taking longer than usual. Please try again.';
         } else if (errorText.includes('quota') || errorText.includes('429')) {
-          errorMessage = 'AI service is busy. Please try again in a few moments.';
+          errorMessage = 'System is busy. Please try again in a few moments.';
         } else if (errorText.includes('unavailable') || errorText.includes('503')) {
-          errorMessage = 'AI service temporarily unavailable. Please try again.';
+          errorMessage = 'Service temporarily unavailable. Please try again.';
         } else if (errorText.includes('failed')) {
           errorMessage = err.message;
         } else {
@@ -123,12 +123,12 @@ export default function QuestionnairePage() {
             )}
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            {isGenerating ? 'Generating Your Profile...' : 'Saving Your Answers...'}
+            {isGenerating ? 'Crafting Your Profile...' : 'Preserving Your Responses...'}
           </h2>
           <p className="text-gray-400">
             {isGenerating 
-              ? 'Our AI is crafting your detailed target audience profile. This may take a moment.' 
-              : 'Please wait while we save your questionnaire.'}
+              ? 'Our system is developing your bespoke target audience profile. This requires a moment of refinement.' 
+              : 'Please wait while we preserve your consultation responses.'}
           </p>
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function QuestionnairePage() {
             <div className="flex items-center space-x-4">
               <span className="text-white font-semibold">Pursue Segments</span>
               <span className="text-gray-500">|</span>
-              <span className="text-gray-400 text-sm">Questionnaire</span>
+              <span className="text-gray-400 text-sm">Consultation</span>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-400">
@@ -272,7 +272,7 @@ export default function QuestionnairePage() {
                 className="flex items-center space-x-2 px-8 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all hover:scale-105"
               >
                 <Sparkles className="w-5 h-5" />
-                <span>Generate Profile</span>
+                <span>Craft Your Profile</span>
               </button>
             ) : (
               <button

@@ -19,7 +19,7 @@ export default function Navbar() {
               href="/questionnaire" 
               className="px-4 py-2 text-sm font-medium text-white bg-royal-700 hover:bg-royal-600 rounded-lg transition-colors"
             >
-              Get Started
+              Begin Your Consultation
             </Link>
           </div>
         </div>

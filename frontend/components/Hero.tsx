@@ -16,22 +16,22 @@ export default function Hero() {
         {/* Badge */}
         <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-royal-800/50 border border-royal-700/50 mb-8 animate-fade-in">
           <Sparkles className="w-4 h-4 text-royal-400" />
-          <span className="text-sm text-royal-200">AI-Powered Audience Profiling</span>
+          <span className="text-sm text-royal-200">Intelligent Audience Profiling</span>
         </div>
 
         {/* Headline */}
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight animate-slide-up">
-          Know Your Audience.
+          Elevate Your Content.
           <br />
           <span className="bg-gradient-to-r from-royal-400 to-royal-200 bg-clip-text text-transparent">
-            Grow Your Podcast.
+            Captivate Your Audience.
           </span>
         </h1>
 
         {/* Subheadline */}
         <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          Answer 32 questions. Get a detailed target audience profile powered by Gemini AI. 
-          Create content that resonates and converts.
+          Through our refined intake process, we craft a bespoke target audience profile 
+          that transforms how you connect with your listeners.
         </p>
 
         {/* CTA Buttons */}
@@ -41,7 +41,7 @@ export default function Hero() {
             className="group flex items-center space-x-2 px-8 py-4 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105"
           >
             <Target className="w-5 h-5" />
-            <span>Start Questionnaire</span>
+            <span>Begin Your Consultation</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
           
@@ -49,7 +49,7 @@ export default function Hero() {
             href="#features"
             className="px-8 py-4 text-gray-300 hover:text-white font-semibold rounded-xl border border-white/10 hover:border-white/20 transition-all duration-200"
           >
-            Learn More
+            Discover the Experience
           </Link>
         </div>
 
@@ -57,15 +57,15 @@ export default function Hero() {
         <div className="mt-16 flex flex-wrap items-center justify-center gap-8 text-sm text-gray-500 animate-fade-in" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span>7 Sections</span>
+            <span>7 Refined Sections</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span>32 Questions</span>
+            <span>32 Insightful Questions</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span>AI-Generated Profile</span>
+            <span>Professionally Crafted Profile</span>
           </div>
         </div>
       </div>

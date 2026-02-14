@@ -1,37 +1,37 @@
 'use client';
 
-import { Target, Users, Zap, FileText, TrendingUp, MessageSquare } from 'lucide-react';
+import { Target, Users, Sparkles, FileText, TrendingUp, MessageSquare } from 'lucide-react';
 
 const features = [
   {
     icon: Target,
     title: 'Precision Targeting',
-    description: 'Define your ideal listener with 32 detailed questions across 7 strategic sections.',
+    description: 'Define your ideal listener through 32 refined questions across 7 strategic sections.',
   },
   {
     icon: Users,
     title: 'Audience Personas',
-    description: 'Get a 400-450 word professional profile describing exactly who your content should reach.',
+    description: 'Receive a comprehensive 400-450 word profile describing precisely who your content should reach.',
   },
   {
-    icon: Zap,
-    title: 'AI-Powered Insights',
-    description: 'Gemini 2.0 Flash analyzes your answers to create actionable content strategies.',
+    icon: Sparkles,
+    title: 'Intelligent Insights',
+    description: 'Our proprietary methodology analyzes your responses to develop actionable content strategies.',
   },
   {
     icon: FileText,
     title: 'Clear Deliverables',
-    description: 'Receive structured profiles with target audience details and content responsibilities.',
+    description: 'Receive structured profiles with precise audience details and content responsibilities.',
   },
   {
     icon: TrendingUp,
     title: 'Growth Focused',
-    description: 'Every recommendation designed to attract, engage, and convert your ideal audience.',
+    description: 'Every recommendation meticulously designed to attract, engage, and cultivate your ideal audience.',
   },
   {
     icon: MessageSquare,
     title: 'Content Strategy',
-    description: 'Know what topics, formats, and CTAs will resonate with your specific listeners.',
+    description: 'Understand which topics, formats, and approaches will resonate with your specific listeners.',
   },
 ];
 
@@ -41,10 +41,10 @@ export default function Features() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Everything You Need to Know Your Audience
+            Everything Required to Understand Your Audience
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Our comprehensive questionnaire system helps you build a complete picture of who you are creating content for.
+            Our comprehensive intake system helps you develop a complete picture of those you create content for.
           </p>
         </div>
 

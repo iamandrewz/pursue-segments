@@ -60,7 +60,7 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
         <button
           onClick={handleCopy}
           className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all"
-          title="Copy clip info"
+          title="Copy segment details"
         >
           {copied ? <CheckCircle className="w-5 h-5 text-green-400" /> : <Download className="w-5 h-5" />}
         </button>
@@ -69,7 +69,7 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
       {/* Title Options */}
       <div className="mb-6">
         <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
-          Choose a Title
+          Select a Title
         </label>
         <div className="space-y-2">
           <label className="flex items-start space-x-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer transition-all">
@@ -133,7 +133,7 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
       <div className="mb-6">
         <div className="flex items-center space-x-2 mb-2">
           <Lightbulb className="w-4 h-4 text-yellow-400" />
-          <span className="text-sm font-medium text-gray-300">Why This Works</span>
+          <span className="text-sm font-medium text-gray-300">Why This Resonates</span>
         </div>
         <p className="text-sm text-gray-400 leading-relaxed">{clip.why_it_works}</p>
       </div>
@@ -147,7 +147,7 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
           <div className="flex items-center space-x-2">
             <FileText className="w-4 h-4 text-gray-400" />
             <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-              View Transcript Excerpt
+              View Dialogue Excerpt
             </span>
           </div>
           {showTranscript ? (
@@ -166,18 +166,18 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
         )}
       </div>
 
-      {/* Generate Clip Button */}
+      {/* Craft Segment Button */}
       <div className="mt-6 pt-4 border-t border-white/10">
         <button
           disabled
           className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-royal-700/30 text-royal-400 font-medium rounded-xl cursor-not-allowed opacity-60"
-          title="Clip encoding coming soon with Mac Mini M4 hardware acceleration"
+          title="Segment production coming soon"
         >
           <Wand2 className="w-5 h-5" />
-          <span>Generate Clip (Coming Soon)</span>
+          <span>Craft Your Segment (Coming Soon)</span>
         </button>
         <p className="mt-2 text-xs text-center text-gray-500">
-          Hardware-accelerated encoding available Feb 20
+          Hardware-accelerated production available soon
         </p>
       </div>
     </div>
@@ -228,7 +228,7 @@ export default function ResultsPage() {
       <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-royal-400 mx-auto animate-spin mb-4" />
-          <p className="text-gray-400">Loading results...</p>
+          <p className="text-gray-400">Accessing your curated collection...</p>
         </div>
       </div>
     );
@@ -248,7 +248,7 @@ export default function ResultsPage() {
             className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Back to Dashboard</span>
+            <span>Return to Studio</span>
           </Link>
         </div>
       </div>
@@ -264,14 +264,14 @@ export default function ResultsPage() {
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Results Not Ready</h2>
           <p className="text-gray-400 mb-6">
-            The analysis is still in progress or failed. Please check the processing page.
+            The refinement is still in progress or encountered an issue. Please check the status page.
           </p>
           <Link 
             href={`/processing/${jobId}`}
             className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Check Progress</span>
+            <span>Check Status</span>
           </Link>
         </div>
       </div>
@@ -294,7 +294,7 @@ export default function ResultsPage() {
               href="/dashboard"
               className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
             >
-              Dashboard
+              Studio
             </Link>
           </div>
         </div>
@@ -306,13 +306,13 @@ export default function ResultsPage() {
           <div className="mb-8 p-4 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center space-x-3">
             <CheckCircle className="w-5 h-5 text-green-400" />
             <span className="text-green-400">
-              Analysis complete! We found {job.clipCount} engaging clip{job.clipCount !== 1 ? 's' : ''} for your episode.
+              Refinement complete. We have curated {job.clipCount} refined segment{job.clipCount !== 1 ? 's' : ''} for your episode.
             </span>
           </div>
 
           {/* Header */}
           <div className="mb-10">
-            <h1 className="text-3xl font-bold text-white mb-2">Clip Suggestions</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">Your Curated Collection</h1>
             <p className="text-gray-400">
               {job.podcastName} • {job.transcript?.duration || 'Unknown duration'}
             </p>
@@ -322,7 +322,7 @@ export default function ResultsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
               <div className="text-2xl font-bold text-white mb-1">{job.clipCount}</div>
-              <div className="text-xs text-gray-400">Clips Found</div>
+              <div className="text-xs text-gray-400">Segments Curated</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
               <div className="text-2xl font-bold text-white mb-1">
@@ -334,17 +334,17 @@ export default function ResultsPage() {
               <div className="text-2xl font-bold text-white mb-1">
                 {Math.round(job.clips.reduce((acc, clip) => acc + clip.duration_minutes, 0) / job.clipCount)}
               </div>
-              <div className="text-xs text-gray-400">Avg Duration</div>
+              <div className="text-xs text-gray-400">Average Duration</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
               <div className="text-2xl font-bold text-white mb-1">
                 {job.transcript?.segments.length.toLocaleString() || 0}
               </div>
-              <div className="text-xs text-gray-400">Transcript Segments</div>
+              <div className="text-xs text-gray-400">Dialogue Segments</div>
             </div>
           </div>
 
-          {/* Clip cards */}
+          {/* Segment cards */}
           <div className="space-y-6">
             {job.clips.map((clip, index) => (
               <ClipCard
@@ -364,7 +364,7 @@ export default function ResultsPage() {
               className="inline-flex items-center space-x-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-xl transition-all border border-white/10"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Analyze Another Episode</span>
+              <span>Refine Another Episode</span>
             </Link>
           </div>
 
@@ -373,12 +373,12 @@ export default function ResultsPage() {
             <div className="flex items-start space-x-3">
               <Sparkles className="w-5 h-5 text-royal-400 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-white font-semibold mb-2">Pro Tips</h3>
+                <h3 className="text-white font-semibold mb-2">Professional Insights</h3>
                 <ul className="text-sm text-gray-400 space-y-2">
-                  <li>• <strong className="text-gray-300">Test different titles:</strong> Try A/B testing the punchy vs curiosity titles to see what gets more clicks.</li>
-                  <li>• <strong className="text-gray-300">Hook within 30 seconds:</strong> The most engaging clips hook viewers immediately - use the engaging quote as your opening.</li>
-                  <li>• <strong className="text-gray-300">8-20 minutes is the sweet spot:</strong> Long-form clips perform better for podcast content than short snippets.</li>
-                  <li>• <strong className="text-gray-300">Coming Feb 20:</strong> Hardware-accelerated clip generation with Mac Mini M4 for 30-second encodes.</li>
+                  <li>• <strong className="text-gray-300">Test different titles:</strong> Consider A/B testing punchy versus curiosity-driven titles to discover what resonates most.</li>
+                  <li>• <strong className="text-gray-300">Open with impact:</strong> The most compelling segments capture attention immediately—use the engaging quote as your opening.</li>
+                  <li>• <strong className="text-gray-300">8-20 minutes is optimal:</strong> Long-form segments perform exceptionally well for podcast content.</li>
+                  <li>• <strong className="text-gray-300">Coming soon:</strong> Hardware-accelerated segment production for rapid turnaround.</li>
                 </ul>
               </div>
             </div>
