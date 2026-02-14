@@ -949,15 +949,23 @@ def get_transcript(video_id):
 # ============================================================================
 
 # Startup logging for Railway debugging
-print(f"[STARTUP] Flask app loading...")
-print(f"[STARTUP] PORT env: {os.getenv('PORT')}")
-print(f"[STARTUP] FLASK_PORT env: {os.getenv('FLASK_PORT')}")
-print(f"[STARTUP] DATA_DIR: {DATA_DIR}")
-print(f"[STARTUP] Gemini available: {GOOGLE_AI_AVAILABLE}")
-print(f"[STARTUP] OpenAI available: {OPENAI_AVAILABLE}")
+print(f"[STARTUP] Flask app loading...", flush=True)
+print(f"[STARTUP] PORT env: {os.getenv('PORT')}", flush=True)
+print(f"[STARTUP] FLASK_PORT env: {os.getenv('FLASK_PORT')}", flush=True)
+print(f"[STARTUP] DATA_DIR: {DATA_DIR}", flush=True)
+print(f"[STARTUP] Gemini available: {GOOGLE_AI_AVAILABLE}", flush=True)
+print(f"[STARTUP] OpenAI available: {OPENAI_AVAILABLE}", flush=True)
+
+def create_app():
+    """Application factory for gunicorn"""
+    print("[STARTUP] create_app() called", flush=True)
+    return app
+
+# This is what gunicorn uses
+application = create_app()
 
 if __name__ == '__main__':
     # Railway provides PORT env var; fallback to 5001 for local dev
     port = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
-    print(f"[STARTUP] Starting Flask on port {port}")
+    print(f"[STARTUP] Starting Flask on port {port}", flush=True)
     app.run(host='0.0.0.0', port=port, debug=False)
