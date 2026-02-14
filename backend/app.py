@@ -44,12 +44,13 @@ else:
         'https://segments.pursuepodcasting.com'
     ]
 
-# Apply CORS to all /api/* routes
+# Apply CORS to all /api/* routes - allow all origins for now
 CORS(app, resources={
     r"/api/*": {
-        "origins": cors_origins,
+        "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": False
     }
 })
 
