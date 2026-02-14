@@ -584,6 +584,11 @@ def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_i
 # API ROUTES - PROFILE (EXISTING)
 # ============================================================================
 
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint - simplest possible response"""
+    return jsonify({'status': 'ok'}), 200
+
 @app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
     if request.method == 'OPTIONS':
