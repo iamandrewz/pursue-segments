@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -12,19 +12,29 @@ import {
   Download, 
   Share2,
   Sparkles,
-  CheckCircle
+  CheckCircle,
+  Youtube,
+  AlertCircle,
+  Clock
 } from 'lucide-react';
-import { getProfile } from '@/lib/api';
+import { getProfile, processEpisode } from '@/lib/api';
 import { ProfileData } from '@/lib/types';
 
 function DashboardContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const profileId = searchParams.get('profileId');
   
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  
+  // Upload form state
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [urlError, setUrlError] = useState('');
 
   useEffect(() => {
     if (profileId) {
@@ -64,6 +74,48 @@ function DashboardContent() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const validateYouTubeUrl = (url: string): boolean => {
+    const pattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+    return pattern.test(url);
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setYoutubeUrl(url);
+    
+    if (url && !validateYouTubeUrl(url)) {
+      setUrlError('Please enter a valid YouTube URL');
+    } else {
+      setUrlError('');
+    }
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateYouTubeUrl(youtubeUrl)) {
+      setUrlError('Please enter a valid YouTube URL');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError('');
+
+    try {
+      const response = await processEpisode({
+        youtubeUrl: youtubeUrl.trim(),
+        podcastName: profile?.podcastName || 'My Podcast',
+        profileId: profileId || undefined,
+      });
+
+      // Redirect to processing page
+      router.push(`/processing/${response.jobId}`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to start processing');
+      setIsUploading(false);
     }
   };
 
@@ -218,27 +270,97 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* Upload Episode CTA */}
+          {/* Upload Episode Form */}
           <div className="p-8 rounded-2xl bg-gradient-to-br from-royal-800/50 to-royal-900/50 border border-royal-700/30">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-              <div className="flex items-start space-x-4">
-                <div className="w-12 h-12 rounded-xl bg-royal-600/30 flex items-center justify-center flex-shrink-0">
-                  <Upload className="w-6 h-6 text-royal-300" />
+            <div className="flex items-start space-x-4 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-royal-600/30 flex items-center justify-center flex-shrink-0">
+                <Youtube className="w-6 h-6 text-royal-300" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-white mb-1">Upload Your Episode</h3>
+                <p className="text-gray-400">
+                  Paste a YouTube URL to analyze your episode and get AI-generated clip suggestions 
+                  optimized for your target audience.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpload} className="space-y-4">
+              <div>
+                <label htmlFor="youtubeUrl" className="block text-sm font-medium text-gray-300 mb-2">
+                  YouTube URL
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    id="youtubeUrl"
+                    value={youtubeUrl}
+                    onChange={handleUrlChange}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${
+                      urlError 
+                        ? 'border-red-500/50 focus:ring-red-500/50' 
+                        : 'border-white/10 focus:ring-royal-500/50 focus:border-royal-500/50'
+                    }`}
+                    disabled={isUploading}
+                  />
+                  {youtubeUrl && !urlError && validateYouTubeUrl(youtubeUrl) && (
+                    <CheckCircle className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-400" />
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white mb-1">Upload Your Episode</h3>
-                  <p className="text-gray-400">
-                    Coming soon: Upload your podcast episodes and get AI-generated clip suggestions 
-                    optimized for your target audience.
+                {urlError && (
+                  <p className="mt-2 text-sm text-red-400 flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-1" />
+                    {urlError}
                   </p>
+                )}
+              </div>
+
+              {uploadError && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-400 text-sm">{uploadError}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+                <div className="flex items-center text-sm text-gray-400">
+                  <Clock className="w-4 h-4 mr-2" />
+                  <span>Processing takes 2-5 minutes depending on episode length</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isUploading || !youtubeUrl || !!urlError}
+                  className="flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 disabled:bg-royal-800/50 disabled:text-royal-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Starting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      <span>Analyze Episode</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Info box */}
+            <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-start space-x-3">
+                <Sparkles className="w-5 h-5 text-royal-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-gray-400">
+                  <p className="mb-1"><strong className="text-gray-300">What happens next:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>We download and transcribe your episode using AI</li>
+                    <li>Our AI analyzes the content for engaging 8-20 minute segments</li>
+                    <li>You&apos;ll get 3-5 clip suggestions with optimized titles and timestamps</li>
+                  </ol>
                 </div>
               </div>
-              <button
-                disabled
-                className="flex-shrink-0 px-6 py-3 bg-royal-700/50 text-royal-300 font-medium rounded-xl cursor-not-allowed"
-              >
-                Coming Soon
-              </button>
             </div>
           </div>
 
