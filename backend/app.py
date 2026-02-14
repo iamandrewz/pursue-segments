@@ -591,17 +591,13 @@ def root():
 
 @app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
+    """Health check endpoint - keep it simple to prevent Railway timeouts"""
     if request.method == 'OPTIONS':
         return '', 204
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'google_ai_available': GOOGLE_AI_AVAILABLE,
-        'gemini_configured': bool(GEMINI_API_KEY),
-        'openai_available': OPENAI_AVAILABLE,
-        'openai_configured': bool(OPENAI_API_KEY and openai_client is not None)
-    })
+    try:
+        return jsonify({'status': 'healthy'}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/questionnaire', methods=['POST', 'OPTIONS'])
 def save_questionnaire():
