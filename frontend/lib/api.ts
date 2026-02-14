@@ -41,20 +41,35 @@ export async function getQuestionnaire(id: string) {
 // ============================================================================
 
 export async function generateProfile(questionnaireId: string) {
-  const response = await fetch(`${API_URL}/api/generate-profile`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ questionnaireId }),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/generate-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ questionnaireId }),
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to generate profile');
+    if (!response.ok) {
+      let errorMessage = 'Failed to generate profile';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use status text
+        errorMessage = `Server error: ${response.status} ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  } catch (error) {
+    // Network/fetch errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to the server. Please check your internet connection.');
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
 export async function getProfile(id: string) {

@@ -83,7 +83,28 @@ export default function QuestionnairePage() {
       // Navigate to dashboard with profile
       router.push(`/dashboard?profileId=${profileResult.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Profile generation error:', err);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'An unexpected error occurred';
+      if (err instanceof Error) {
+        const errorText = err.message.toLowerCase();
+        if (errorText.includes('network') || errorText.includes('fetch')) {
+          errorMessage = 'Connection issue. Please check your internet and try again.';
+        } else if (errorText.includes('timeout') || errorText.includes('504')) {
+          errorMessage = 'Our AI is taking longer than usual. Please try again.';
+        } else if (errorText.includes('quota') || errorText.includes('429')) {
+          errorMessage = 'AI service is busy. Please try again in a few moments.';
+        } else if (errorText.includes('unavailable') || errorText.includes('503')) {
+          errorMessage = 'AI service temporarily unavailable. Please try again.';
+        } else if (errorText.includes('failed')) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
       setIsSubmitting(false);
       setIsGenerating(false);
     }
@@ -208,8 +229,14 @@ export default function QuestionnairePage() {
 
           {/* Error message */}
           {error && (
-            <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
-              {error}
+            <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+              <p className="text-red-400 mb-3">{error}</p>
+              <button
+                onClick={() => setError('')}
+                className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium rounded-lg transition-colors"
+              >
+                Dismiss
+              </button>
             </div>
           )}
         </div>

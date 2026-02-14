@@ -240,53 +240,70 @@ def format_section_answers(answers, section_name):
 def generate_profile_with_gemini(podcast_name, host_names, answers):
     """Generate target audience profile using Gemini 2.0 Flash"""
     
+    print(f"[DEBUG] Starting profile generation for podcast: {podcast_name}")
+    
     if not GEMINI_API_KEY:
-        raise Exception("Gemini API key not configured")
+        print("[ERROR] Gemini API key not configured")
+        raise Exception("Gemini API key not configured. Please contact support.")
     
-    # Format all sections
-    section_map = {
-        'section1': 'q1',
-        'section2': 'q2', 
-        'section3': 'q3',
-        'section4': 'q4',
-        'section5': 'q5',
-        'section6': 'q6',
-        'section7': 'q7'
-    }
-    
-    formatted_sections = {}
-    for section_key, section_prefix in section_map.items():
-        section_answers = {k: v for k, v in answers.items() if k.startswith(section_prefix)}
-        formatted_lines = []
-        for q_key, value in sorted(section_answers.items()):
-            q_num = q_key.replace(section_prefix, '').strip('_')
-            formatted_lines.append(f"{q_num}. {value}")
-        formatted_sections[section_key] = '\n'.join(formatted_lines) if formatted_lines else "No answers provided."
-    
-    # Build the prompt
-    prompt = PROFILE_GENERATION_PROMPT.format(
-        podcast_name=podcast_name,
-        host_names=host_names,
-        section1=formatted_sections['section1'],
-        section2=formatted_sections['section2'],
-        section3=formatted_sections['section3'],
-        section4=formatted_sections['section4'],
-        section5=formatted_sections['section5'],
-        section6=formatted_sections['section6'],
-        section7=formatted_sections['section7']
-    )
-    
-    # Call Gemini API
-    model = genai.GenerativeModel('gemini-2.0-flash')
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.7,
-            max_output_tokens=800,
+    try:
+        # Format all sections
+        section_map = {
+            'section1': 'q1',
+            'section2': 'q2', 
+            'section3': 'q3',
+            'section4': 'q4',
+            'section5': 'q5',
+            'section6': 'q6',
+            'section7': 'q7'
+        }
+        
+        formatted_sections = {}
+        for section_key, section_prefix in section_map.items():
+            section_answers = {k: v for k, v in answers.items() if k.startswith(section_prefix)}
+            formatted_lines = []
+            for q_key, value in sorted(section_answers.items()):
+                q_num = q_key.replace(section_prefix, '').strip('_')
+                formatted_lines.append(f"{q_num}. {value}")
+            formatted_sections[section_key] = '\n'.join(formatted_lines) if formatted_lines else "No answers provided."
+        
+        print(f"[DEBUG] Formatted sections: {list(formatted_sections.keys())}")
+        
+        # Build the prompt
+        prompt = PROFILE_GENERATION_PROMPT.format(
+            podcast_name=podcast_name,
+            host_names=host_names,
+            section1=formatted_sections['section1'],
+            section2=formatted_sections['section2'],
+            section3=formatted_sections['section3'],
+            section4=formatted_sections['section4'],
+            section5=formatted_sections['section5'],
+            section6=formatted_sections['section6'],
+            section7=formatted_sections['section7']
         )
-    )
-    
-    return response.text
+        
+        print(f"[DEBUG] Calling Gemini API...")
+        
+        # Call Gemini API
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=800,
+            )
+        )
+        
+        print(f"[DEBUG] Gemini API response received, length: {len(response.text) if response.text else 0}")
+        
+        if not response.text:
+            raise Exception("Gemini returned empty response")
+        
+        return response.text
+        
+    except Exception as e:
+        print(f"[ERROR] Error generating profile: {str(e)}")
+        raise Exception(f"Failed to generate profile: {str(e)}")
 
 # ============================================================================
 # YOUTUBE PROCESSING FUNCTIONS
@@ -580,18 +597,29 @@ def get_questionnaire(questionnaire_id):
 @app.route('/api/generate-profile', methods=['POST'])
 def generate_profile():
     """Generate target audience profile from questionnaire"""
+    print(f"[DEBUG] /api/generate-profile called")
+    
     try:
         data = request.json
+        print(f"[DEBUG] Request data: {data}")
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         questionnaire_id = data.get('questionnaireId')
         
         if not questionnaire_id:
+            print("[ERROR] Questionnaire ID missing")
             return jsonify({'error': 'Questionnaire ID is required'}), 400
         
         filename = f"questionnaire_{questionnaire_id}.json"
         questionnaire = load_data(filename)
         
         if not questionnaire:
+            print(f"[ERROR] Questionnaire not found: {questionnaire_id}")
             return jsonify({'error': 'Questionnaire not found'}), 404
+        
+        print(f"[DEBUG] Generating profile for podcast: {questionnaire.get('podcastName')}")
         
         profile_text = generate_profile_with_gemini(
             podcast_name=questionnaire['podcastName'],
@@ -615,6 +643,8 @@ def generate_profile():
         questionnaire['profileId'] = profile_id
         save_data(filename, questionnaire)
         
+        print(f"[DEBUG] Profile generated successfully: {profile_id}")
+        
         return jsonify({
             'id': profile_id,
             'profile': profile_text,
@@ -623,7 +653,18 @@ def generate_profile():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_msg = str(e)
+        print(f"[ERROR] Error in generate_profile: {error_msg}")
+        
+        # Return user-friendly error messages
+        if "Gemini API key" in error_msg:
+            return jsonify({'error': 'AI service temporarily unavailable. Please try again in a moment.'}), 503
+        elif "quota" in error_msg.lower():
+            return jsonify({'error': 'AI quota exceeded. Please try again later.'}), 429
+        elif "timeout" in error_msg.lower():
+            return jsonify({'error': 'Request timed out. Please try again.'}), 504
+        else:
+            return jsonify({'error': f'There was an issue generating your profile: {error_msg}'}), 500
 
 @app.route('/api/profile/<profile_id>', methods=['GET'])
 def get_profile(profile_id):
