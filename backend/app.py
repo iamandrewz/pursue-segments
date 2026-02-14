@@ -590,6 +590,90 @@ def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_i
             except:
                 pass
 
+def process_file_async(job_id, file_path, video_id, podcast_name, profile_id=None):
+    """Process uploaded file in background thread"""
+    try:
+        # Step 1: Extract audio from uploaded video
+        update_job_status(job_id, 'downloading', 'Extracting audio from video...')
+        audio_path = extract_audio_from_file(file_path, video_id)
+        
+        # Step 2: Transcribe
+        update_job_status(job_id, 'transcribing', 'Transcribing audio with Whisper...')
+        transcript_data = transcribe_with_whisper(audio_path, video_id)
+        
+        # Step 3: Get target audience profile
+        update_job_status(job_id, 'analyzing', 'Retrieving target audience profile...')
+        
+        target_audience_profile = ""
+        if profile_id:
+            profile_data = load_data(f"profile_{profile_id}.json", DATA_DIR)
+            if profile_data:
+                target_audience_profile = profile_data.get('profile', '')
+        
+        # If no profile, use a default
+        if not target_audience_profile:
+            target_audience_profile = f"Target audience for {podcast_name}. Engaged listeners interested in podcast content."
+        
+        # Step 4: Analyze clips
+        update_job_status(job_id, 'analyzing', 'AI analyzing segments for clip opportunities...')
+        clips = analyze_clips_with_gemini(transcript_data['fullText'], target_audience_profile)
+        
+        # Step 5: Complete
+        update_job_status(
+            job_id, 
+            'complete', 
+            'Analysis complete!',
+            transcript=transcript_data,
+            clips=clips,
+            clipCount=len(clips)
+        )
+        
+    except Exception as e:
+        update_job_status(job_id, 'failed', f'Error: {str(e)}', error=str(e))
+    finally:
+        # Cleanup temp files
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except:
+                pass
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
+
+def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
+    """Extract audio from uploaded video file using ffmpeg"""
+    import subprocess
+    
+    output_path = os.path.join(output_dir, f"{video_id}.mp3")
+    
+    # ffmpeg command to extract audio
+    cmd = [
+        'ffmpeg',
+        '-i', file_path,
+        '-vn',  # No video
+        '-acodec', 'libmp3lame',
+        '-q:a', '2',  # High quality
+        '-y',  # Overwrite if exists
+        output_path
+    ]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            raise Exception(f"ffmpeg failed: {result.stderr}")
+        
+        if not os.path.exists(output_path):
+            raise Exception("Audio file not found after extraction")
+        
+        return output_path
+    except subprocess.TimeoutExpired:
+        raise Exception("Audio extraction timed out after 5 minutes")
+    except Exception as e:
+        raise Exception(f"Failed to extract audio: {str(e)}")
+
 # ============================================================================
 # API ROUTES - PROFILE (EXISTING)
 # ============================================================================
@@ -788,10 +872,15 @@ def get_user_profiles(user_id):
 
 @app.route('/api/process-episode', methods=['POST', 'OPTIONS'])
 def process_episode():
-    """Start processing a YouTube episode"""
+    """Start processing a YouTube episode or uploaded file"""
     if request.method == 'OPTIONS':
         return '', 204
     try:
+        # Check if this is a file upload or JSON request
+        if request.files and 'videoFile' in request.files:
+            return process_file_upload()
+        
+        # Otherwise, process as YouTube URL (legacy)
         data = request.json
         print(f"[DEBUG] /api/process-episode called with data: {data}")
         
@@ -836,6 +925,63 @@ def process_episode():
         thread = threading.Thread(
             target=process_episode_async,
             args=(job_id, youtube_url, video_id, podcast_name, profile_id)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'jobId': job_id,
+            'status': 'queued',
+            'message': 'Episode processing started'
+        }), 202
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def process_file_upload():
+    """Handle file upload processing"""
+    try:
+        video_file = request.files['videoFile']
+        podcast_name = request.form.get('podcastName', 'My Podcast')
+        profile_id = request.form.get('profileId')
+        
+        if not video_file:
+            return jsonify({'error': 'Video file is required'}), 400
+        
+        # Validate file type
+        allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+        file_ext = os.path.splitext(video_file.filename)[1].lower()
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Generate job ID and video ID
+        job_id = str(uuid.uuid4())
+        video_id = f"upload_{job_id[:8]}"
+        
+        # Save uploaded file
+        upload_dir = os.path.join(DATA_DIR, 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, f"{video_id}{file_ext}")
+        video_file.save(file_path)
+        
+        # Create job record
+        job_data = {
+            'id': job_id,
+            'videoId': video_id,
+            'podcastName': podcast_name,
+            'profileId': profile_id,
+            'status': 'queued',
+            'progressMessage': 'Queued for processing...',
+            'createdAt': datetime.now().isoformat(),
+            'updatedAt': datetime.now().isoformat()
+        }
+        
+        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+        
+        # Start async processing
+        thread = threading.Thread(
+            target=process_file_async,
+            args=(job_id, file_path, video_id, podcast_name, profile_id)
         )
         thread.daemon = True
         thread.start()
