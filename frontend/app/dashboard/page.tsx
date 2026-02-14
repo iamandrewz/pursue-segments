@@ -337,7 +337,7 @@ function DashboardContent() {
   const profileId = searchParams.get('profileId');
   
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // TEMP: Bypass loading state for testing
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   
@@ -348,12 +348,12 @@ function DashboardContent() {
   const [urlError, setUrlError] = useState('');
   const [videoId, setVideoId] = useState<string | null>(null);
 
+  // TEMP: Bypass profile loading for testing
   useEffect(() => {
     if (profileId) {
       loadProfile();
-    } else {
-      setIsLoading(false);
     }
+    // else: remain not loading, show form immediately
   }, [profileId]);
 
   const loadProfile = async () => {
@@ -481,37 +481,38 @@ function DashboardContent() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-royal-400 mx-auto animate-spin mb-4" />
-          <p className="text-gray-400">Accessing your profile...</p>
-        </div>
-      </div>
-    );
-  }
+  // TEMP: Bypass profile loading checks for testing
+  // if (isLoading) {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <Loader2 className="w-12 h-12 text-royal-400 mx-auto animate-spin mb-4" />
+  //         <p className="text-gray-400">Accessing your profile...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center px-4">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-            <FileText className="w-8 h-8 text-red-400" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Error Loading Profile</h2>
-          <p className="text-gray-400 mb-6">{error}</p>
-          <Link 
-            href="/questionnaire"
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Begin New Consultation</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  // if (error) {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900 flex items-center justify-center px-4">
+  //       <div className="text-center max-w-md">
+  //         <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+  //           <FileText className="w-8 h-8 text-red-400" />
+  //         </div>
+  //         <h2 className="text-xl font-bold text-white mb-2">Error Loading Profile</h2>
+  //         <p className="text-gray-400 mb-6">{error}</p>
+  //         <Link 
+  //           href="/questionnaire"
+  //           className="inline-flex items-center space-x-2 px-6 py-3 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all"
+  //         >
+  //           <ArrowLeft className="w-5 h-5" />
+  //           <span>Begin New Consultation</span>
+  //         </Link>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-royal-950 to-royal-900">
@@ -729,8 +730,8 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* No Profile CTA */}
-          {!profile && !profileId && (
+          {/* No Profile CTA - TEMPORARILY HIDDEN FOR TESTING */}
+          {/* {!profile && !profileId && (
             <div className="mt-12 p-8 rounded-2xl bg-white/5 border border-white/10 text-center">
               <div className="w-16 h-16 rounded-2xl bg-royal-800/50 flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-royal-400" />
@@ -748,7 +749,7 @@ function DashboardContent() {
                 <span>Begin Consultation</span>
               </Link>
             </div>
-          )}
+          )} */}
         </div>
       </main>
     </div>
