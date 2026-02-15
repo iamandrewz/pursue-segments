@@ -1114,17 +1114,18 @@ def get_transcript(video_id):
 def find_frontend_index():
     """Find the frontend index.html file"""
     possible_paths = [
-        # Render structure (frontend at repo root)
+        # Render: frontend copied to backend/static/.next
+        os.path.join(os.path.dirname(__file__), 'static', '.next', 'server', 'app', 'index.html'),
+        # Local dev: frontend at repo root
         os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'server', 'app', 'index.html'),
-        # Alternative: frontend built to static folder
+        # Fallback
         os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
-        # Alternative: frontend at same level as backend
-        os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', '.next', 'server', 'app', 'index.html'),
     ]
     
     for path in possible_paths:
-        print(f"[DEBUG] Checking: {path} - Exists: {os.path.exists(path)}")
-        if os.path.exists(path):
+        exists = os.path.exists(path)
+        print(f"[DEBUG] Checking: {path} - Exists: {exists}")
+        if exists:
             return path
     
     return None
@@ -1133,6 +1134,11 @@ def find_frontend_index():
 @app.route('/_next/static/<path:filename>')
 def serve_next_static(filename):
     """Serve Next.js static files"""
+    # Try Render path first (static/.next/static)
+    frontend_static = os.path.join(os.path.dirname(__file__), 'static', '.next', 'static')
+    if os.path.exists(os.path.join(frontend_static, filename)):
+        return send_from_directory(frontend_static, filename)
+    # Try local dev path
     frontend_static = os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'static')
     if os.path.exists(os.path.join(frontend_static, filename)):
         return send_from_directory(frontend_static, filename)
