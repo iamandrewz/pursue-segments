@@ -1817,29 +1817,33 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
             output_path
         ]
         
+        print(f"[CLIP] Running ffmpeg: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        
+        print(f"[CLIP] ffmpeg stdout: {result.stdout[:500] if result.stdout else 'empty'}")
+        print(f"[CLIP] ffmpeg stderr: {result.stderr[:1000] if result.stderr else 'empty'}")
+        print(f"[CLIP] ffmpeg returncode: {result.returncode}")
         
         # Ensure file is fully written and flushed
         if os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
-            print(f"[CLIP] Extraction result: returncode={result.returncode}, size={file_size}")
+            print(f"[CLIP] Output file size: {file_size} bytes")
             
-            if file_size < 1000:
-                print(f"[CLIP] File too small, likely failed. stderr: {result.stderr[:500]}")
+            if file_size < 1000 or result.returncode != 0:
+                print(f"[CLIP] Extraction failed or file too small")
                 try:
                     os.remove(output_path)
                 except:
                     pass
-            elif result.returncode == 0:
-                # Post-process to ensure valid MP4 (moov atom at front)
-                print(f"[CLIP] Post-processing MP4 for QuickTime compatibility...")
+            else:
+                # Post-process to ensure valid MP4
+                print(f"[CLIP] Post-processing MP4...")
                 temp_output = output_path + '.tmp.mp4'
                 fix_cmd = [
                     'ffmpeg', '-y',
                     '-i', output_path,
                     '-c', 'copy',
                     '-movflags', '+faststart',
-                    '-f', 'mp4',
                     temp_output
                 ]
                 fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
@@ -1847,7 +1851,7 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
                     os.replace(temp_output, output_path)
                     print(f"[CLIP] Post-processing complete: {os.path.getsize(output_path)} bytes")
                 else:
-                    print(f"[CLIP] Post-processing failed: {fix_result.stderr[:200]}")
+                    print(f"[CLIP] Post-processing failed: {fix_result.stderr[:500]}")
         
         # Update status
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
