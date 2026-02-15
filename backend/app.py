@@ -1951,44 +1951,38 @@ def download_clip_video(job_id, clip_index):
         # Check if file exists and is valid
         if os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
-            print(f"[CLIP] Found existing file: {file_size} bytes")
-            if file_size > 10000:  # At least 10KB for a valid clip
-                # Verify it's a valid MP4 by checking header
-                with open(output_path, 'rb') as f:
-                    header = f.read(8)
-                    if header[4:8] == b'ftyp':  # Valid MP4 header
-                        print(f"[CLIP] Serving valid MP4: {output_path}")
-                        return send_file(output_path, as_attachment=True, download_name=output_filename)
-                    else:
-                        print(f"[CLIP] Invalid MP4 header: {header[:8]}")
-                        os.remove(output_path)
+            if file_size > 10000:
+                return send_file(output_path, as_attachment=True, download_name=output_filename)
             else:
-                print(f"[CLIP] File too small ({file_size} bytes), re-extracting...")
-                try:
-                    os.remove(output_path)
-                except:
-                    pass
+                os.remove(output_path)
 
-        # Start async extraction
+        # Extract synchronously (more reliable)
         start_sec = parse_timestamp_to_seconds(start_ts)
         end_sec = parse_timestamp_to_seconds(end_ts)
         duration = end_sec - start_sec
+        
+        print(f"[CLIP] Extracting {start_ts} ({start_sec}s) to {end_ts} ({end_sec}s), duration: {duration}s")
 
-        # Mark as processing
-        if 'clipStatus' not in job_data:
-            job_data['clipStatus'] = {}
-        job_data['clipStatus'][str(clip_index)] = 'processing'
-        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', video_path,
+            '-ss', str(start_sec),
+            '-t', str(duration),
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+            output_path
+        ]
 
-        # Start background thread
-        thread = threading.Thread(
-            target=extract_clip_async,
-            args=(job_id, clip_index, video_path, output_path, start_sec, duration, safe_title)
-        )
-        thread.daemon = True
-        thread.start()
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        print(f"[CLIP] ffmpeg returncode: {result.returncode}")
+        if result.stderr:
+            print(f"[CLIP] ffmpeg stderr: {result.stderr[:500]}")
 
-        return jsonify({'status': 'processing', 'message': 'Clip extraction started. Poll again to check status.'}), 202
+        if result.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
+            return jsonify({'error': 'Extraction failed', 'details': result.stderr[:200]}), 500
+
+        return send_file(output_path, as_attachment=True, download_name=output_filename)
 
     except Exception as e:
         print(f"[CLIP] Error: {e}")
