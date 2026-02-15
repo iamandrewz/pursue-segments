@@ -982,33 +982,62 @@ def process_file_async(job_id, file_path, video_id, podcast_name, profile_id=Non
                 pass
 
 def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
-    """Extract audio from uploaded video file using ffmpeg"""
+    """Extract audio from uploaded video file using ffmpeg - optimized for Whisper (25MB limit)"""
     import subprocess
 
     output_path = os.path.join(output_dir, f"{video_id}.mp3")
 
-    # ffmpeg command to extract audio
+    # First pass: extract with good quality
     cmd = [
         'ffmpeg',
         '-i', file_path,
         '-vn',  # No video
         '-acodec', 'libmp3lame',
-        '-q:a', '2',  # High quality
+        '-ar', '16000',  # 16kHz is good for speech recognition
+        '-ac', '1',  # Mono (smaller file)
+        '-b:a', '32k',  # 32kbps bitrate (low but sufficient for speech)
         '-y',  # Overwrite if exists
         output_path
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if result.returncode != 0:
             raise Exception(f"ffmpeg failed: {result.stderr}")
 
         if not os.path.exists(output_path):
             raise Exception("Audio file not found after extraction")
 
+        # Check file size - Whisper limit is 25MB
+        file_size = os.path.getsize(output_path)
+        print(f"[AUDIO] Extracted {file_size} bytes ({file_size / (1024*1024):.1f} MB)")
+
+        if file_size > 24 * 1024 * 1024:  # If over 24MB, re-encode with lower quality
+            print(f"[AUDIO] File too large ({file_size / (1024*1024):.1f} MB), re-encoding...")
+            temp_path = output_path + '.tmp.mp3'
+
+            # Re-encode at even lower bitrate
+            cmd2 = [
+                'ffmpeg',
+                '-i', output_path,
+                '-vn',
+                '-acodec', 'libmp3lame',
+                '-ar', '16000',
+                '-ac', '1',
+                '-b:a', '16k',  # Very low bitrate for speech
+                '-y',
+                temp_path
+            ]
+
+            result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=300)
+            if result2.returncode == 0 and os.path.exists(temp_path):
+                os.replace(temp_path, output_path)
+                new_size = os.path.getsize(output_path)
+                print(f"[AUDIO] Re-encoded to {new_size} bytes ({new_size / (1024*1024):.1f} MB)")
+
         return output_path
     except subprocess.TimeoutExpired:
-        raise Exception("Audio extraction timed out after 5 minutes")
+        raise Exception("Audio extraction timed out after 10 minutes")
     except Exception as e:
         raise Exception(f"Failed to extract audio: {str(e)}")
 
