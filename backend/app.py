@@ -529,6 +529,8 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         # Remove trailing commas
         response_text = re.sub(r',\s*}', '}', response_text)
         response_text = re.sub(r',\s*]', ']', response_text)
+        # Fix single quotes to double quotes (Gemini sometimes uses single quotes)
+        response_text = response_text.replace("'", '"')
         # Fix multiple spaces
         response_text = re.sub(r'\s+', ' ', response_text)
         
