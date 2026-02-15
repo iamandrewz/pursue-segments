@@ -1198,4 +1198,3 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
     print(f"[STARTUP] Starting Flask on port {port}", flush=True)
     app.run(host='0.0.0.0', port=port, debug=False)
-# Deploy Sat Feb 14 18:48:36 PST 2026
