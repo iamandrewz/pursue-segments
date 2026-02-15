@@ -31,7 +31,9 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__, template_folder='templates')
+# Get the directory where this file is located
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, 'templates'))
 
 # Configure max content length for file uploads (5GB)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
@@ -1114,7 +1116,15 @@ def get_transcript(video_id):
 @app.route('/', methods=['GET'])
 def serve_frontend():
     """Serve the simple HTML upload form"""
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        # Fallback: serve directly if template not found
+        index_path = os.path.join(BACKEND_DIR, 'templates', 'index.html')
+        if os.path.exists(index_path):
+            with open(index_path, 'r') as f:
+                return f.read()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):
