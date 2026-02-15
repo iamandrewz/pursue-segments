@@ -31,7 +31,7 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/.next/static', static_url_path='/static')
 
 # Configure max content length for file uploads (5GB)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
@@ -1106,6 +1106,59 @@ def get_transcript(video_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ============================================================================
+# FRONTEND SERVING (Single Page Application)
+# ============================================================================
+
+@app.route('/', methods=['GET'])
+def serve_frontend():
+    """Serve the frontend index.html"""
+    # Check multiple possible locations for index.html
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), 'static/index.html'),
+        os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html'),
+        os.path.join(os.path.dirname(__file__), 'static/.next/server/app/index.html'),
+    ]
+    
+    for index_path in possible_paths:
+        if os.path.exists(index_path):
+            with open(index_path, 'r') as f:
+                return f.read()
+    
+    return jsonify({'status': 'backend running', 'message': 'Frontend not built'}), 200
+
+@app.route('/<path:path>', methods=['GET'])
+def serve_frontend_routes(path):
+    """Serve frontend routes (SPA catch-all)"""
+    # API routes are handled above, this catches everything else
+    if path.startswith('api/'):
+        return jsonify({'error': 'Not found'}), 404
+    
+    # Try to serve static file from multiple locations
+    static_paths = [
+        os.path.join(os.path.dirname(__file__), 'static', path),
+        os.path.join(os.path.dirname(__file__), '../frontend/.next/static', path),
+        os.path.join(os.path.dirname(__file__), 'static/.next/static', path),
+    ]
+    
+    for static_file in static_paths:
+        if os.path.exists(static_file) and os.path.isfile(static_file):
+            return app.send_static_file(static_file)
+    
+    # Otherwise serve index.html for SPA routing
+    index_paths = [
+        os.path.join(os.path.dirname(__file__), 'static/index.html'),
+        os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html'),
+        os.path.join(os.path.dirname(__file__), 'static/.next/server/app/index.html'),
+    ]
+    
+    for index_path in index_paths:
+        if os.path.exists(index_path):
+            with open(index_path, 'r') as f:
+                return f.read()
+    
+    return jsonify({'status': 'backend running', 'frontend': 'not built'}), 200
 
 # ============================================================================
 # MAIN
