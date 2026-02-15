@@ -1,17 +1,18 @@
-# Pursue Segments - Combined Deployment (Render)
-# This serves both frontend and backend from one service
-
-# Build command (Render will run this)
-buildCommand: |
-  cd frontend && npm install && npm run build
-  mkdir -p ../backend/static
-  cp -r .next/* ../backend/static/
-  cd ../backend && pip install -r requirements.txt
-
-# Start command
-startCommand: cd backend && python app.py
-
-# Environment variables (set these in Render dashboard)
-# GEMINI_API_KEY=your_key_here
-# OPENAI_API_KEY=your_key_here (optional)
-# CORS_ORIGINS=*
+services:
+  - type: web
+    name: pursue-segments
+    runtime: python
+    plan: standard
+    buildCommand: |
+      cd frontend && npm install && npm run build
+      mkdir -p ../backend/static
+      cp -r .next/* ../backend/static/
+      cd ../backend && pip install -r requirements.txt
+    startCommand: cd backend && python app.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"

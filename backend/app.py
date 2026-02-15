@@ -2,7 +2,7 @@
 # Flask API with Gemini 2.0 Flash integration for target audience generation
 # YouTube processing with yt-dlp, Whisper, and clip analysis
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import json
@@ -1111,52 +1111,40 @@ def get_transcript(video_id):
 # FRONTEND SERVING (Single Page Application)
 # ============================================================================
 
+# Serve static files from frontend .next folder
+@app.route('/_next/static/<path:filename>')
+def serve_next_static(filename):
+    """Serve Next.js static files"""
+    frontend_static = os.path.join(os.path.dirname(__file__), '../frontend/.next/static')
+    if os.path.exists(os.path.join(frontend_static, filename)):
+        return send_from_directory(frontend_static, filename)
+    return jsonify({'error': 'Not found'}), 404
+
 @app.route('/', methods=['GET'])
 def serve_frontend():
     """Serve the frontend index.html"""
-    # Check multiple possible locations for index.html
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), 'static/index.html'),
-        os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html'),
-        os.path.join(os.path.dirname(__file__), 'static/.next/server/app/index.html'),
-    ]
+    # Look for index.html in frontend build
+    index_path = os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html')
     
-    for index_path in possible_paths:
-        if os.path.exists(index_path):
-            with open(index_path, 'r') as f:
-                return f.read()
+    if os.path.exists(index_path):
+        with open(index_path, 'r') as f:
+            return f.read()
     
-    return jsonify({'status': 'backend running', 'message': 'Frontend not built'}), 200
+    return jsonify({'status': 'backend running', 'message': 'Frontend not built at ' + index_path}), 200
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):
     """Serve frontend routes (SPA catch-all)"""
-    # API routes are handled above, this catches everything else
+    # API routes are handled above
     if path.startswith('api/'):
         return jsonify({'error': 'Not found'}), 404
     
-    # Try to serve static file from multiple locations
-    static_paths = [
-        os.path.join(os.path.dirname(__file__), 'static', path),
-        os.path.join(os.path.dirname(__file__), '../frontend/.next/static', path),
-        os.path.join(os.path.dirname(__file__), 'static/.next/static', path),
-    ]
+    # Serve index.html for all other routes (SPA routing)
+    index_path = os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html')
     
-    for static_file in static_paths:
-        if os.path.exists(static_file) and os.path.isfile(static_file):
-            return app.send_static_file(static_file)
-    
-    # Otherwise serve index.html for SPA routing
-    index_paths = [
-        os.path.join(os.path.dirname(__file__), 'static/index.html'),
-        os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html'),
-        os.path.join(os.path.dirname(__file__), 'static/.next/server/app/index.html'),
-    ]
-    
-    for index_path in index_paths:
-        if os.path.exists(index_path):
-            with open(index_path, 'r') as f:
-                return f.read()
+    if os.path.exists(index_path):
+        with open(index_path, 'r') as f:
+            return f.read()
     
     return jsonify({'status': 'backend running', 'frontend': 'not built'}), 200
 
