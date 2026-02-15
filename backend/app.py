@@ -573,24 +573,56 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         validated_clips = []
         for i, clip in enumerate(clips):
             try:
+                # Debug: print what we're working with
+                print(f"[DEBUG] Processing clip {i}: {type(clip)} - {clip}")
+                
+                # Handle case where clip might be a string or other non-dict type
+                if not isinstance(clip, dict):
+                    print(f"[WARN] Clip {i} is not a dict: {clip}")
+                    continue
+                
+                # Clean up keys - remove newlines and whitespace
+                clean_clip = {}
+                for key, value in clip.items():
+                    clean_key = str(key).strip().replace('\n', '').replace('  ', ' ')
+                    clean_clip[clean_key] = value
+                
                 # Ensure all required fields are present
                 validated_clip = {
-                    'start_timestamp': str(clip.get('start_timestamp', '00:00')),
-                    'end_timestamp': str(clip.get('end_timestamp', '00:00')),
-                    'duration_minutes': clip.get('duration_minutes', 0),
-                    'title_options': clip.get('title_options', {
+                    'start_timestamp': str(clean_clip.get('start_timestamp', '00:00')),
+                    'end_timestamp': str(clean_clip.get('end_timestamp', '00:00')),
+                    'duration_minutes': clean_clip.get('duration_minutes', 0),
+                    'title_options': clean_clip.get('title_options', {
                         'punchy': 'Untitled Clip',
                         'benefit': 'Untitled Clip',
                         'curiosity': 'Untitled Clip'
                     }),
-                    'engaging_quote': str(clip.get('engaging_quote', '')),
-                    'transcript_excerpt': str(clip.get('transcript_excerpt', '')),
-                    'why_it_works': str(clip.get('why_it_works', ''))
+                    'engaging_quote': str(clean_clip.get('engaging_quote', '')),
+                    'transcript_excerpt': str(clean_clip.get('transcript_excerpt', '')),
+                    'why_it_works': str(clean_clip.get('why_it_works', ''))
                 }
                 validated_clips.append(validated_clip)
             except Exception as clip_err:
                 print(f"[WARN] Failed to validate clip {i}: {clip_err}")
+                import traceback
+                traceback.print_exc()
                 continue
+        
+        if not validated_clips:
+            print("[WARN] No valid clips found, returning fallback")
+            return [{
+                'start_timestamp': '00:00',
+                'end_timestamp': '10:00',
+                'duration_minutes': 10,
+                'title_options': {
+                    'punchy': 'Clip extraction failed - check logs',
+                    'benefit': 'No valid clips found',
+                    'curiosity': 'See server logs for details'
+                },
+                'engaging_quote': 'The AI returned data in an unexpected format. Check the server logs.',
+                'transcript_excerpt': 'Transcript was processed successfully but clip extraction encountered issues.',
+                'why_it_works': 'This is a fallback response. The transcript analysis completed but clip formatting failed.'
+            }]
         
         return validated_clips
     except json.JSONDecodeError as e:
