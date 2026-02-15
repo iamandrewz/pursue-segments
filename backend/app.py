@@ -227,10 +227,10 @@ SECTION 7: Relationship to Your Podcast
 CLIP_ANALYSIS_PROMPT = """You are a podcast clip expert with deep knowledge of viral content, storytelling, and audience engagement. Your task is to analyze the provided transcript and identify 3-5 segments that would make excellent long-form clips (8-20 minutes each).
 
 TARGET AUDIENCE PROFILE:
-{target_audience_profile}
+%(target_audience_profile)s
 
 TRANSCRIPT (with timestamps):
-{transcript}
+%(transcript)s
 
 ANALYSIS CRITERIA:
 For each clip, find segments that have:
@@ -491,12 +491,11 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         if not GEMINI_API_KEY:
             raise Exception("Gemini API key not configured")
         
-        # Build the prompt - escape curly braces in transcript to prevent format errors
-        safe_transcript = transcript_text[:150000].replace('{', '{{').replace('}', '}}')
-        prompt = CLIP_ANALYSIS_PROMPT.format(
-            target_audience_profile=target_audience_profile,
-            transcript=safe_transcript
-        )
+        # Build the prompt - use % formatting to avoid issues with { in transcript
+        prompt = CLIP_ANALYSIS_PROMPT % {
+            'target_audience_profile': target_audience_profile,
+            'transcript': transcript_text[:150000]
+        }
         
         # Call Gemini API
         model = genai.GenerativeModel('gemini-1.5-flash')
