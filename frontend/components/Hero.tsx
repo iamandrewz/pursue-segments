@@ -37,8 +37,16 @@ export default function Hero() {
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 animate-slide-up" style={{ animationDelay: '0.2s' }}>
           <Link 
-            href="/questionnaire"
+            href="/dashboard"
             className="group flex items-center space-x-2 px-8 py-4 bg-royal-600 hover:bg-royal-500 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105"
+          >
+            <Target className="w-5 h-5" />
+            <span>Upload Video</span>
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </Link>
+          <Link 
+            href="/questionnaire"
+            className="group flex items-center space-x-2 px-8 py-4 bg-royal-700 hover:bg-royal-600 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105"
           >
             <Target className="w-5 h-5" />
             <span>Begin Your Consultation</span>
