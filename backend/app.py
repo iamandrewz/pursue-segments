@@ -177,50 +177,31 @@ def get_chunked_status(upload_id):
         if not session:
             return jsonify({'error': 'Upload session not found'}), 404
 
-        return jsonify({
+        response = {
             'status': session['status'],
             'filename': session['filename'],
             'fileSize': session['fileSize'],
             'chunksUploaded': len(session['uploadedChunks']),
             'totalChunks': session['totalChunks'],
             'progress': len(session['uploadedChunks']) / session['totalChunks'] * 100
-        }), 200
+        }
+        
+        # Include file path if completed
+        if session['status'] == 'completed':
+            response['finalPath'] = session.get('finalPath')
+            response['finalSize'] = session.get('finalSize')
+        
+        # Include error if failed
+        if session['status'] == 'error':
+            response['error'] = session.get('error', 'Unknown error')
+            
+        return jsonify(response), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/chunked/complete', methods=['POST'])
-def complete_chunked_upload():
-    """Finalize upload - reassemble all chunks"""
+def reassemble_file_async(upload_id, session):
+    """Background task to reassemble chunks"""
     try:
-        data = request.json
-        upload_id = data.get('uploadId') if data else None
-
-        if not upload_id:
-            return jsonify({'error': 'uploadId is required'}), 400
-
-        session = get_upload_session(upload_id)
-        if not session:
-            return jsonify({'error': 'Upload session not found'}), 404
-
-        if session['status'] == 'completed':
-            return jsonify({
-                'status': 'completed',
-                'filePath': session.get('finalPath'),
-                'message': 'Upload already completed'
-            }), 200
-
-        # Check if all chunks uploaded
-        expected_chunks = set(range(session['totalChunks']))
-        uploaded_chunks = set(session['uploadedChunks'])
-        missing_chunks = expected_chunks - uploaded_chunks
-
-        if missing_chunks:
-            return jsonify({
-                'error': f'Missing chunks: {sorted(missing_chunks)[:10]}',
-                'missingCount': len(missing_chunks)
-            }), 400
-
-        # Reassemble chunks
         upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
         final_dir = os.path.join(DATA_DIR, 'uploads')
         os.makedirs(final_dir, exist_ok=True)
@@ -234,7 +215,7 @@ def complete_chunked_upload():
                 chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
                 with open(chunk_path, 'rb') as infile:
                     outfile.write(infile.read())
-                # Delete chunk immediately after writing to save disk space
+                # Delete chunk immediately after writing
                 try:
                     os.remove(chunk_path)
                 except:
@@ -254,14 +235,70 @@ def complete_chunked_upload():
         session['finalSize'] = actual_size
         session['completedAt'] = datetime.now().isoformat()
         save_upload_session(session)
+        
+        print(f"[CHUNKED] Reassembly complete: {final_path}")
+    except Exception as e:
+        print(f"[CHUNKED] Reassembly failed: {e}")
+        import traceback
+        traceback.print_exc()
+        session['status'] = 'error'
+        session['error'] = str(e)
+        save_upload_session(session)
+
+@app.route('/api/chunked/complete', methods=['POST'])
+def complete_chunked_upload():
+    """Finalize upload - start async reassembly"""
+    try:
+        data = request.json
+        upload_id = data.get('uploadId') if data else None
+
+        if not upload_id:
+            return jsonify({'error': 'uploadId is required'}), 400
+
+        session = get_upload_session(upload_id)
+        if not session:
+            return jsonify({'error': 'Upload session not found'}), 404
+
+        if session['status'] == 'completed':
+            return jsonify({
+                'status': 'completed',
+                'filePath': session.get('finalPath'),
+                'message': 'Upload already completed'
+            }), 200
+            
+        if session['status'] == 'processing':
+            return jsonify({
+                'status': 'processing',
+                'message': 'File reassembly in progress...'
+            }), 200
+
+        # Check if all chunks uploaded
+        expected_chunks = set(range(session['totalChunks']))
+        uploaded_chunks = set(session['uploadedChunks'])
+        missing_chunks = expected_chunks - uploaded_chunks
+
+        if missing_chunks:
+            return jsonify({
+                'error': f'Missing chunks: {sorted(missing_chunks)[:10]}',
+                'missingCount': len(missing_chunks)
+            }), 400
+
+        # Mark as processing and start background task
+        session['status'] = 'processing'
+        save_upload_session(session)
+        
+        thread = threading.Thread(
+            target=reassemble_file_async,
+            args=(upload_id, session)
+        )
+        thread.daemon = True
+        thread.start()
 
         return jsonify({
-            'status': 'completed',
-            'filePath': final_path,
-            'filename': session['filename'],
-            'fileSize': actual_size,
-            'message': 'File reassembled successfully'
-        }), 200
+            'status': 'processing',
+            'message': 'File reassembly started. Poll /api/chunked/status to check progress.'
+        }), 202
+        
     except Exception as e:
         import traceback
         traceback.print_exc()

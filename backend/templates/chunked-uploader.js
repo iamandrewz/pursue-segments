@@ -183,7 +183,7 @@ class ChunkedUploader {
     }
     
     /**
-     * Complete the upload and reassemble file
+     * Complete the upload and reassemble file (async - polls for completion)
      */
     async _completeUpload() {
         const response = await fetch('/api/chunked/complete', {
@@ -197,15 +197,35 @@ class ChunkedUploader {
             throw new Error(error.error || 'Failed to complete upload');
         }
         
-        const data = await response.json();
+        let data = await response.json();
+        
+        // If processing, poll until complete
+        if (data.status === 'processing') {
+            console.log('[ChunkedUpload] Reassembly in progress, polling...');
+            this.onStatus({ message: 'Reassembling file...', progress: 100 });
+            
+            while (data.status === 'processing') {
+                await this._delay(2000); // Poll every 2 seconds
+                const statusResponse = await fetch(`/api/chunked/status/${this.uploadId}`);
+                if (!statusResponse.ok) {
+                    throw new Error('Failed to check status');
+                }
+                data = await statusResponse.json();
+                console.log('[ChunkedUpload] Status:', data.status);
+            }
+        }
+        
+        if (data.status !== 'completed') {
+            throw new Error(data.error || 'Reassembly failed');
+        }
         
         // Clear saved upload
         this._clearSavedUpload();
         
         this.onComplete({
-            filePath: data.filePath,
+            filePath: data.filePath || data.finalPath,
             filename: data.filename,
-            fileSize: data.fileSize,
+            fileSize: data.fileSize || data.finalSize,
             fileHash: data.fileHash
         });
         
