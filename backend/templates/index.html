@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pursue Segments - Upload Video</title>
+    <style>
+        body { font-family: system-ui; max-width: 600px; margin: 50px auto; padding: 20px; background: #0f172a; color: white; }
+        h1 { color: #60a5fa; }
+        input, button { width: 100%; padding: 15px; margin: 10px 0; font-size: 16px; border-radius: 8px; border: none; }
+        button { background: #3b82f6; color: white; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        #status { margin-top: 20px; padding: 15px; border-radius: 8px; background: #1e293b; }
+        .error { background: #7f1d1d !important; }
+        .success { background: #14532d !important; }
+    </style>
+</head>
+<body>
+    <h1>📹 Pursue Segments</h1>
+    <p>Upload your podcast episode for AI analysis</p>
+    
+    <form id="uploadForm">
+        <input type="file" id="videoFile" accept="video/*" required>
+        <button type="submit">Upload & Analyze</button>
+    </form>
+    
+    <div id="status" style="display:none"></div>
+
+    <script>
+        const API_URL = window.location.origin;
+        
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('videoFile').files[0];
+            const status = document.getElementById('status');
+            
+            if (!file) return;
+            
+            status.style.display = 'block';
+            status.className = '';
+            status.textContent = 'Uploading...';
+            
+            const formData = new FormData();
+            formData.append('video', file);
+            
+            try {
+                const response = await fetch(`${API_URL}/api/process-episode`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    status.className = 'success';
+                    status.innerHTML = `<strong>Upload successful!</strong><br>Job ID: ${data.jobId}<br>Status: ${data.status}`;
+                } else {
+                    status.className = 'error';
+                    status.textContent = 'Error: ' + (data.error || 'Unknown error');
+                }
+            } catch (err) {
+                status.className = 'error';
+                status.textContent = 'Upload failed: ' + err.message;
+            }
+        };
+    </script>
+</body>
+</html>

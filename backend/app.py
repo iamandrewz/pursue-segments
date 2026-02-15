@@ -2,7 +2,7 @@
 # Flask API with Gemini 2.0 Flash integration for target audience generation
 # YouTube processing with yt-dlp, Whisper, and clip analysis
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 import os
 import json
@@ -31,7 +31,7 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__, static_folder='../frontend/.next/static', static_url_path='/static')
+app = Flask(__name__, template_folder='templates')
 
 # Configure max content length for file uploads (5GB)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
@@ -1108,90 +1108,20 @@ def get_transcript(video_id):
         return jsonify({'error': str(e)}), 500
 
 # ============================================================================
-# FRONTEND SERVING (Single Page Application)
+# FRONTEND SERVING (Simple HTML Upload Form)
 # ============================================================================
-
-def find_frontend_index():
-    """Find the frontend index.html file"""
-    possible_paths = [
-        # Render: frontend copied to backend/static/.next
-        os.path.join(os.path.dirname(__file__), 'static', '.next', 'server', 'app', 'index.html'),
-        # Local dev: frontend at repo root
-        os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'server', 'app', 'index.html'),
-        # Fallback
-        os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
-    ]
-    
-    for path in possible_paths:
-        exists = os.path.exists(path)
-        print(f"[DEBUG] Checking: {path} - Exists: {exists}")
-        if exists:
-            return path
-    
-    return None
-
-# Serve static files from frontend .next folder
-@app.route('/_next/static/<path:filename>')
-def serve_next_static(filename):
-    """Serve Next.js static files"""
-    # Try multiple possible locations
-    possible_roots = [
-        # Render: copied to backend/static/.next/static
-        os.path.join(os.path.dirname(__file__), 'static', '.next', 'static'),
-        # Local dev: frontend/.next/static
-        os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'static'),
-    ]
-    
-    for root in possible_roots:
-        full_path = os.path.join(root, filename)
-        if os.path.exists(full_path) and os.path.isfile(full_path):
-            directory = os.path.dirname(full_path)
-            basename = os.path.basename(full_path)
-            return send_from_directory(directory, basename)
-    
-    return jsonify({'error': f'Static file not found: {filename}'}), 404
 
 @app.route('/', methods=['GET'])
 def serve_frontend():
-    """Serve the frontend index.html"""
-    index_path = find_frontend_index()
-    
-    if index_path:
-        print(f"[DEBUG] Serving frontend from: {index_path}")
-        with open(index_path, 'r') as f:
-            return f.read()
-    
-    # List what we can see for debugging
-    backend_dir = os.path.dirname(__file__)
-    parent_dir = os.path.join(backend_dir, '..')
-    
-    debug_info = {
-        'status': 'backend running',
-        'message': 'Frontend not found',
-        'backend_dir': backend_dir,
-        'parent_dir_contents': os.listdir(parent_dir) if os.path.exists(parent_dir) else 'N/A',
-        'looking_for': [
-            os.path.join(backend_dir, '..', 'frontend', '.next', 'server', 'app', 'index.html'),
-            os.path.join(backend_dir, 'static', 'index.html'),
-        ]
-    }
-    return jsonify(debug_info), 200
+    """Serve the simple HTML upload form"""
+    return render_template('index.html')
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):
-    """Serve frontend routes (SPA catch-all)"""
-    # API routes are handled above
+    """Catch-all for SPA routes"""
     if path.startswith('api/'):
         return jsonify({'error': 'Not found'}), 404
-    
-    # Serve index.html for all other routes (SPA routing)
-    index_path = find_frontend_index()
-    
-    if index_path:
-        with open(index_path, 'r') as f:
-            return f.read()
-    
-    return jsonify({'status': 'backend running', 'frontend': 'not built'}), 200
+    return render_template('index.html')
 
 # ============================================================================
 # MAIN
