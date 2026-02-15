@@ -1807,12 +1807,26 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
             '-bufsize', '4M',           # Buffer size
             '-c:a', 'aac',              # Audio codec
             '-b:a', '96k',              # Lower audio bitrate
-            '-movflags', '+faststart',  # Web optimization
+            '-movflags', 'faststart',   # Web optimization (no + prefix)
+            '-pix_fmt', 'yuv420p',      # Ensure compatibility
             '-threads', '1',            # Limit threads to save memory
             output_path
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        
+        # Ensure file is fully written and flushed
+        if os.path.exists(output_path):
+            # Verify file size is reasonable
+            file_size = os.path.getsize(output_path)
+            print(f"[CLIP] Extraction result: returncode={result.returncode}, size={file_size}")
+            
+            if file_size < 1000:
+                print(f"[CLIP] File too small, likely failed. stderr: {result.stderr[:500]}")
+                try:
+                    os.remove(output_path)
+                except:
+                    pass
         
         # Update status
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
@@ -1909,15 +1923,26 @@ def download_clip_video(job_id, clip_index):
         if clip_status and clip_status.startswith('error'):
             return jsonify({'error': 'Clip extraction failed', 'details': clip_status}), 500
 
-        # Check if file exists but is empty (failed extraction)
+        # Check if file exists and is valid
         if os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
-            if file_size < 1000:
-                print(f"[CLIP] File exists but too small ({file_size} bytes), re-extracting...")
-                os.remove(output_path)
+            print(f"[CLIP] Found existing file: {file_size} bytes")
+            if file_size > 10000:  # At least 10KB for a valid clip
+                # Verify it's a valid MP4 by checking header
+                with open(output_path, 'rb') as f:
+                    header = f.read(8)
+                    if header[4:8] == b'ftyp':  # Valid MP4 header
+                        print(f"[CLIP] Serving valid MP4: {output_path}")
+                        return send_file(output_path, as_attachment=True, download_name=output_filename)
+                    else:
+                        print(f"[CLIP] Invalid MP4 header: {header[:8]}")
+                        os.remove(output_path)
             else:
-                # File is good, serve it
-                return send_file(output_path, as_attachment=True, download_name=output_filename)
+                print(f"[CLIP] File too small ({file_size} bytes), re-extracting...")
+                try:
+                    os.remove(output_path)
+                except:
+                    pass
 
         # Start async extraction
         start_sec = parse_timestamp_to_seconds(start_ts)
