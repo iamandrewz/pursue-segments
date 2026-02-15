@@ -1795,21 +1795,25 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
             save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
         
         # Memory-efficient ffmpeg command for Render's 512MB limit
+        # Using -ss after -i for accurate frame extraction
         cmd = [
             'ffmpeg', '-y',
-            '-ss', str(start_sec),      # Seek before input (faster, less memory)
-            '-i', video_path,           # Input
+            '-i', video_path,           # Input first
+            '-ss', str(start_sec),      # Then seek (more accurate)
             '-t', str(duration),        # Duration
             '-c:v', 'libx264',          # Video codec
-            '-preset', 'ultrafast',     # Fastest preset (less memory)
-            '-crf', '28',               # Lower quality = smaller files
-            '-maxrate', '2M',           # Limit bitrate
-            '-bufsize', '4M',           # Buffer size
-            '-c:a', 'aac',              # Audio codec
-            '-b:a', '96k',              # Lower audio bitrate
-            '-movflags', 'faststart',   # Web optimization (no + prefix)
-            '-pix_fmt', 'yuv420p',      # Ensure compatibility
-            '-threads', '1',            # Limit threads to save memory
+            '-preset', 'ultrafast',     # Fastest preset
+            '-crf', '23',               # Quality
+            '-maxrate', '2M',
+            '-bufsize', '4M',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',  # Put moov at beginning
+            '-pix_fmt', 'yuv420p',      # Compatibility
+            '-profile:v', 'baseline',   # Max compatibility
+            '-level', '3.0',
+            '-threads', '1',
+            '-f', 'mp4',                # Force MP4 format
             output_path
         ]
         
@@ -1817,7 +1821,6 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
         
         # Ensure file is fully written and flushed
         if os.path.exists(output_path):
-            # Verify file size is reasonable
             file_size = os.path.getsize(output_path)
             print(f"[CLIP] Extraction result: returncode={result.returncode}, size={file_size}")
             
@@ -1827,6 +1830,24 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
                     os.remove(output_path)
                 except:
                     pass
+            elif result.returncode == 0:
+                # Post-process to ensure valid MP4 (moov atom at front)
+                print(f"[CLIP] Post-processing MP4 for QuickTime compatibility...")
+                temp_output = output_path + '.tmp.mp4'
+                fix_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', output_path,
+                    '-c', 'copy',
+                    '-movflags', '+faststart',
+                    '-f', 'mp4',
+                    temp_output
+                ]
+                fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
+                if fix_result.returncode == 0 and os.path.exists(temp_output):
+                    os.replace(temp_output, output_path)
+                    print(f"[CLIP] Post-processing complete: {os.path.getsize(output_path)} bytes")
+                else:
+                    print(f"[CLIP] Post-processing failed: {fix_result.stderr[:200]}")
         
         # Update status
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
