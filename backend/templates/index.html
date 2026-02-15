@@ -994,6 +994,7 @@
                             <div class="clip-time">⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_minutes} min)</div>
                             <div class="clip-quote">"${clip.engaging_quote || clip.transcript_excerpt?.substring(0, 150) + '...'}"</div>
                             <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
+                            <button class="btn btn-small" onclick="alert('Transcript editor coming soon!')">Edit Timestamps</button>
                         </div>
                     `;
                     clipsContainer.innerHTML += html;
