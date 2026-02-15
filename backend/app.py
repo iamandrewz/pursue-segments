@@ -581,10 +581,15 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                     print(f"[WARN] Clip {i} is not a dict: {clip}")
                     continue
                 
-                # Clean up keys - remove newlines and whitespace
+                # Clean up keys - remove ALL whitespace and special chars
                 clean_clip = {}
                 for key, value in clip.items():
-                    clean_key = str(key).strip().replace('\n', '').replace('  ', ' ')
+                    # Aggressive key cleaning - remove everything except alphanumeric and underscore
+                    clean_key = str(key).strip()
+                    clean_key = clean_key.replace('\n', '').replace('\r', '').replace('\t', '')
+                    clean_key = clean_key.replace(' ', '').replace('"', '').replace("'", '')
+                    clean_key = clean_key.replace('    ', '').replace('   ', '').replace('  ', '')
+                    print(f"[DEBUG] Original key: '{repr(key)}' -> Cleaned: '{clean_key}'")
                     clean_clip[clean_key] = value
                 
                 # Ensure all required fields are present
