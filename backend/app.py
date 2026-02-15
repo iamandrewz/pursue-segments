@@ -228,14 +228,25 @@ def complete_chunked_upload():
         final_filename = f"{upload_id}_{session['filename']}"
         final_path = os.path.join(final_dir, final_filename)
 
-        # Combine chunks
+        # Combine chunks (stream and delete to save disk space)
         with open(final_path, 'wb') as outfile:
             for i in range(session['totalChunks']):
                 chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
                 with open(chunk_path, 'rb') as infile:
                     outfile.write(infile.read())
+                # Delete chunk immediately after writing to save disk space
+                try:
+                    os.remove(chunk_path)
+                except:
+                    pass
 
         actual_size = os.path.getsize(final_path)
+        
+        # Clean up upload directory
+        try:
+            os.rmdir(upload_dir)
+        except:
+            pass
 
         # Update session
         session['status'] = 'completed'
