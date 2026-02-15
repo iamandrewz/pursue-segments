@@ -1798,17 +1798,28 @@ def download_clip_video(job_id, clip_index):
 
         # Find the original video file
         video_path = job_data.get('filePath')
+        video_id = job_data.get('videoId')
+        uploads_dir = os.path.join(DATA_DIR, 'uploads')
+        
+        # Try multiple patterns to find the file
         if not video_path or not os.path.exists(video_path):
-            # Try to find from videoId
-            video_id = job_data.get('videoId')
-            uploads_dir = os.path.join(DATA_DIR, 'uploads')
-            for fname in os.listdir(uploads_dir):
-                if fname.startswith(video_id):
-                    video_path = os.path.join(uploads_dir, fname)
-                    break
+            if video_id and os.path.exists(uploads_dir):
+                for fname in os.listdir(uploads_dir):
+                    # Match videoId prefix or upload ID patterns
+                    if fname.startswith(video_id) or video_id in fname:
+                        video_path = os.path.join(uploads_dir, fname)
+                        break
+        
+        # Still not found? Search for any file with job ID
+        if not video_path or not os.path.exists(video_path):
+            if os.path.exists(uploads_dir):
+                for fname in os.listdir(uploads_dir):
+                    if job_id in fname:
+                        video_path = os.path.join(uploads_dir, fname)
+                        break
 
         if not video_path or not os.path.exists(video_path):
-            return jsonify({'error': 'Original video not found'}), 404
+            return jsonify({'error': 'Original video file not found. Files are cleared between deploys on Render. Please re-upload the video.'}), 404
 
         # Create clips directory
         clips_dir = os.path.join(DATA_DIR, 'clips')
