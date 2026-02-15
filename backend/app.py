@@ -1067,17 +1067,13 @@ def process_file_async(job_id, file_path, video_id, podcast_name, profile_id=Non
     except Exception as e:
         update_job_status(job_id, 'failed', f'Error: {str(e)}', error=str(e))
     finally:
-        # Cleanup temp files
+        # Cleanup temp audio file only (keep video for clip extraction)
         if audio_path and os.path.exists(audio_path):
             try:
                 os.remove(audio_path)
             except:
                 pass
-        if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except:
-                pass
+        # NOTE: We keep file_path (original video) for clip download feature
 
 def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
     """Extract audio from uploaded video file using ffmpeg - optimized for Whisper (25MB limit)"""
