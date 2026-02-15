@@ -1211,35 +1211,51 @@
         
         async function downloadClip(clipIndex, jobId) {
             try {
-                showStatus(`⏳ Extracting clip ${clipIndex + 1}... This may take a minute.`, 'processing');
+                showStatus(`⏳ Starting clip ${clipIndex + 1} extraction...`, 'processing');
                 
-                const response = await fetch(`${API_URL}/api/job/${jobId}/clip/${clipIndex}/download`);
+                let attempts = 0;
+                const maxAttempts = 60; // 2 minutes at 2-second intervals
                 
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Failed to download clip');
+                while (attempts < maxAttempts) {
+                    const response = await fetch(`${API_URL}/api/job/${jobId}/clip/${clipIndex}/download`);
+                    
+                    if (response.status === 202) {
+                        // Still processing
+                        const data = await response.json();
+                        showStatus(`⏳ Extracting clip ${clipIndex + 1}... (attempt ${attempts + 1})`, 'processing');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        attempts++;
+                        continue;
+                    }
+                    
+                    if (!response.ok) {
+                        const data = await response.json();
+                        throw new Error(data.error || 'Failed to download clip');
+                    }
+                    
+                    // Success - download the file
+                    const disposition = response.headers.get('Content-Disposition');
+                    let filename = `clip_${clipIndex + 1}.mp4`;
+                    if (disposition) {
+                        const match = disposition.match(/filename="(.+)"/);
+                        if (match) filename = match[1];
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showStatus(`✅ Clip ${clipIndex + 1} downloaded!`, 'success');
+                    return;
                 }
                 
-                // Get filename from Content-Disposition header or use default
-                const disposition = response.headers.get('Content-Disposition');
-                let filename = `clip_${clipIndex + 1}.mp4`;
-                if (disposition) {
-                    const match = disposition.match(/filename="(.+)"/);
-                    if (match) filename = match[1];
-                }
-                
-                // Download the file
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                showStatus(`✅ Clip ${clipIndex + 1} downloaded!`, 'success');
+                throw new Error('Clip extraction timed out after 2 minutes');
             } catch (err) {
                 console.error('Download error:', err);
                 showStatus(`❌ Download failed: ${err.message}`, 'error');

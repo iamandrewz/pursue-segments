@@ -1772,9 +1772,57 @@ def export_clips(job_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, duration, safe_title):
+    """Background task to extract video clip"""
+    import subprocess
+    try:
+        print(f"[CLIP] Starting async extraction: job={job_id}, clip={clip_index}")
+        
+        # Update job status to show processing
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if job_data:
+            if 'clipStatus' not in job_data:
+                job_data['clipStatus'] = {}
+            job_data['clipStatus'][str(clip_index)] = 'processing'
+            save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+        
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', str(start_sec),
+            '-i', video_path,
+            '-t', str(duration),
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            output_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        
+        # Update status
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if job_data:
+            if 'clipStatus' not in job_data:
+                job_data['clipStatus'] = {}
+            if result.returncode == 0 and os.path.exists(output_path):
+                job_data['clipStatus'][str(clip_index)] = 'ready'
+                print(f"[CLIP] Extraction complete: {output_path}")
+            else:
+                job_data['clipStatus'][str(clip_index)] = f'error: {result.stderr[:200]}'
+                print(f"[CLIP] Extraction failed: {result.stderr[:200]}")
+            save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+            
+    except Exception as e:
+        print(f"[CLIP] Async extraction error: {e}")
+        import traceback
+        traceback.print_exc()
+
 @app.route('/api/job/<job_id>/clip/<int:clip_index>/download', methods=['GET', 'OPTIONS'])
 def download_clip_video(job_id, clip_index):
-    """Extract and download a specific clip as video file"""
+    """Extract and download a specific clip as video file (async)"""
     if request.method == 'OPTIONS':
         return '', 204
     try:
@@ -1801,16 +1849,13 @@ def download_clip_video(job_id, clip_index):
         video_id = job_data.get('videoId')
         uploads_dir = os.path.join(DATA_DIR, 'uploads')
         
-        # Try multiple patterns to find the file
         if not video_path or not os.path.exists(video_path):
             if video_id and os.path.exists(uploads_dir):
                 for fname in os.listdir(uploads_dir):
-                    # Match videoId prefix or upload ID patterns
                     if fname.startswith(video_id) or video_id in fname:
                         video_path = os.path.join(uploads_dir, fname)
                         break
         
-        # Still not found? Search for any file with job ID
         if not video_path or not os.path.exists(video_path):
             if os.path.exists(uploads_dir):
                 for fname in os.listdir(uploads_dir):
@@ -1832,43 +1877,39 @@ def download_clip_video(job_id, clip_index):
         output_filename = f"{job_id}_{clip_index}_{safe_title}.mp4"
         output_path = os.path.join(clips_dir, output_filename)
 
-        # Check if already extracted
+        # Check if already extracted and ready
         if os.path.exists(output_path):
             return send_file(output_path, as_attachment=True, download_name=output_filename)
 
-        # Parse timestamps to seconds
+        # Check if currently processing
+        clip_status = job_data.get('clipStatus', {}).get(str(clip_index))
+        if clip_status == 'processing':
+            return jsonify({'status': 'processing', 'message': 'Clip extraction in progress...'}), 202
+
+        # Check for errors
+        if clip_status and clip_status.startswith('error'):
+            return jsonify({'error': 'Clip extraction failed', 'details': clip_status}), 500
+
+        # Start async extraction
         start_sec = parse_timestamp_to_seconds(start_ts)
         end_sec = parse_timestamp_to_seconds(end_ts)
         duration = end_sec - start_sec
 
-        # Extract clip with ffmpeg
-        import subprocess
-        cmd = [
-            'ffmpeg', '-y',
-            '-ss', str(start_sec),  # Start time
-            '-i', video_path,       # Input
-            '-t', str(duration),    # Duration
-            '-c:v', 'libx264',      # Video codec
-            '-preset', 'fast',      # Speed/quality tradeoff
-            '-crf', '23',           # Quality (lower = better)
-            '-c:a', 'aac',          # Audio codec
-            '-b:a', '128k',         # Audio bitrate
-            '-movflags', '+faststart',  # Web optimization
-            output_path
-        ]
+        # Mark as processing
+        if 'clipStatus' not in job_data:
+            job_data['clipStatus'] = {}
+        job_data['clipStatus'][str(clip_index)] = 'processing'
+        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
 
-        print(f"[CLIP] Extracting clip {clip_index}: {start_ts} - {end_ts}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # Start background thread
+        thread = threading.Thread(
+            target=extract_clip_async,
+            args=(job_id, clip_index, video_path, output_path, start_sec, duration, safe_title)
+        )
+        thread.daemon = True
+        thread.start()
 
-        if result.returncode != 0:
-            print(f"[CLIP] ffmpeg error: {result.stderr}")
-            return jsonify({'error': 'Failed to extract clip'}), 500
-
-        if not os.path.exists(output_path):
-            return jsonify({'error': 'Clip file not created'}), 500
-
-        print(f"[CLIP] Clip extracted: {output_path}")
-        return send_file(output_path, as_attachment=True, download_name=output_filename)
+        return jsonify({'status': 'processing', 'message': 'Clip extraction started. Poll again to check status.'}), 202
 
     except Exception as e:
         print(f"[CLIP] Error: {e}")
