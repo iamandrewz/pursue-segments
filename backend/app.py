@@ -517,16 +517,22 @@ For each clip:
 ANALYSIS CRITERIA:
 For each clip, find segments that have:
 1. Strong HOOK potential - Look for contrast statements, surprising revelations, or emotional reactions
-2. Complete story arc - Beginning, middle, and satisfying conclusion within the segment
+2. COMPLETE STORY ARC - Clear beginning, middle, and satisfying conclusion (not just a fragment)
 3. Specific moments with numbers, results, or concrete examples
 4. Natural sentence boundaries (look for transitions like "Now," "So," "Anyways," "Here's the thing")
 5. Content that resonates with the target audience's pain points and interests
 
+MANDATORY LENGTH REQUIREMENT:
+- MINIMUM 5 minutes per clip - NO EXCEPTIONS
+- Target range: 5-15 minutes
+- Ideal length: 7-10 minutes for maximum engagement
+- Every clip MUST be at least 5 minutes long - if you find a great segment under 5 min, extend it to include the full context
+
 IMPORTANT TIMING GUIDELINES:
 - Find the HOOK 30-60 seconds BEFORE the main valuable content
 - Ensure the clip ends at a natural stopping point (completes the thought/story)
-- Target 8-20 minutes duration per clip
-- Vary the clip lengths for variety (one ~8 min, one ~12 min, one ~15+ min)
+- The clip must feel like a complete segment, not a snippet
+- Do NOT suggest clips under 5 minutes - combine adjacent valuable content if needed
 
 For each clip, provide:
 1. start_timestamp - EXACT timestamp from transcript when hook begins (e.g., "02:28")
