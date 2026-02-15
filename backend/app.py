@@ -344,7 +344,7 @@ def generate_profile_with_gemini(podcast_name, host_names, answers):
         print(f"[DEBUG] Calling Gemini API...")
         
         # Call Gemini API
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
@@ -497,7 +497,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
     )
     
     # Call Gemini API
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content(
         prompt,
         generation_config=genai.types.GenerationConfig(
