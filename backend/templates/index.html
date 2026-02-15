@@ -552,6 +552,11 @@
         const API_URL = window.location.origin;
         const CHUNKED_THRESHOLD = 100 * 1024 * 1000; // 100MB - files above this use chunked upload
         
+        // Helper function to check if chunked upload is needed
+        function shouldUseChunkedUpload(file, threshold = CHUNKED_THRESHOLD) {
+            return file && file.size > threshold;
+        }
+        
         // DOM Elements
         const uploadArea = document.getElementById('uploadArea');
         const videoFile = document.getElementById('videoFile');
