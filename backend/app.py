@@ -201,18 +201,31 @@ def get_chunked_status(upload_id):
 
 def reassemble_file_async(upload_id, session):
     """Background task to reassemble chunks"""
+    print(f"[CHUNKED] Starting reassembly for {upload_id}, {session['totalChunks']} chunks")
     try:
         upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
         final_dir = os.path.join(DATA_DIR, 'uploads')
         os.makedirs(final_dir, exist_ok=True)
+        
+        print(f"[CHUNKED] Upload dir: {upload_dir}")
+        print(f"[CHUNKED] Final dir: {final_dir}")
+        
+        # Check disk space
+        import shutil
+        stat = shutil.disk_usage(final_dir)
+        print(f"[CHUNKED] Disk space: {stat.free / (1024**3):.2f} GB free")
 
         final_filename = f"{upload_id}_{session['filename']}"
         final_path = os.path.join(final_dir, final_filename)
+        
+        print(f"[CHUNKED] Reassembling to: {final_path}")
 
         # Combine chunks (stream and delete to save disk space)
         with open(final_path, 'wb') as outfile:
             for i in range(session['totalChunks']):
                 chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
+                if not os.path.exists(chunk_path):
+                    raise Exception(f"Chunk {i} not found at {chunk_path}")
                 with open(chunk_path, 'rb') as infile:
                     outfile.write(infile.read())
                 # Delete chunk immediately after writing
@@ -220,8 +233,12 @@ def reassemble_file_async(upload_id, session):
                     os.remove(chunk_path)
                 except:
                     pass
+                
+                if i % 50 == 0:
+                    print(f"[CHUNKED] Processed {i}/{session['totalChunks']} chunks")
 
         actual_size = os.path.getsize(final_path)
+        print(f"[CHUNKED] Final file size: {actual_size} bytes")
         
         # Clean up upload directory
         try:

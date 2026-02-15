@@ -199,20 +199,32 @@ class ChunkedUploader {
         
         let data = await response.json();
         
-        // If processing, poll until complete
+        // If processing, poll until complete (max 5 minutes)
         if (data.status === 'processing') {
             console.log('[ChunkedUpload] Reassembly in progress, polling...');
             this.onProgress({ percent: 100, message: 'Reassembling file...' });
             
-            while (data.status === 'processing') {
+            let attempts = 0;
+            const maxAttempts = 150; // 5 minutes at 2-second intervals
+            
+            while (data.status === 'processing' && attempts < maxAttempts) {
                 await this._delay(2000); // Poll every 2 seconds
                 const statusResponse = await fetch(`/api/chunked/status/${this.uploadId}`);
                 if (!statusResponse.ok) {
                     throw new Error('Failed to check status');
                 }
                 data = await statusResponse.json();
-                console.log('[ChunkedUpload] Status:', data.status);
+                console.log('[ChunkedUpload] Status:', data.status, 'attempt:', attempts);
+                attempts++;
             }
+            
+            if (attempts >= maxAttempts) {
+                throw new Error('Reassembly timed out after 5 minutes');
+            }
+        }
+        
+        if (data.status === 'error') {
+            throw new Error(data.error || 'Reassembly failed on server');
         }
         
         if (data.status !== 'completed') {
