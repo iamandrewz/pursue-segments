@@ -2,7 +2,7 @@
 # Flask API with Gemini 2.0 Flash integration for target audience generation
 # YouTube processing with yt-dlp, Whisper, and clip analysis
 
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template, send_file
 from flask_cors import CORS
 import os
 import json
