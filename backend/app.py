@@ -508,6 +508,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
     try:
         # Clean up the response text to extract JSON
         response_text = response.text.strip()
+        print(f"[DEBUG] Raw Gemini response: {response_text[:500]}")
         
         # Remove markdown code blocks if present
         if response_text.startswith('```json'):
@@ -522,34 +523,46 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         # Fix common JSON formatting issues from Gemini
         # Remove trailing commas before closing brackets
         response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
-        # Replace problematic newlines in JSON keys
+        # Replace problematic newlines in JSON keys/values
         response_text = re.sub(r'\n\s*"', '"', response_text)
+        response_text = re.sub(r'"\s*\n', '"', response_text)
+        # Remove any literal newlines inside strings (replace with space)
+        response_text = re.sub(r'(?<=: )"([^"]*)\n([^"]*)"', r'"\1 \2"', response_text)
+        
+        print(f"[DEBUG] Cleaned JSON: {response_text[:500]}")
         
         clips = json.loads(response_text)
         
         # Validate and clean up clips
         validated_clips = []
-        for clip in clips:
-            # Ensure all required fields are present
-            validated_clip = {
-                'start_timestamp': clip.get('start_timestamp', '00:00'),
-                'end_timestamp': clip.get('end_timestamp', '00:00'),
-                'duration_minutes': clip.get('duration_minutes', 0),
-                'title_options': clip.get('title_options', {
-                    'punchy': 'Untitled Clip',
-                    'benefit': 'Untitled Clip',
-                    'curiosity': 'Untitled Clip'
-                }),
-                'engaging_quote': clip.get('engaging_quote', ''),
-                'transcript_excerpt': clip.get('transcript_excerpt', ''),
-                'why_it_works': clip.get('why_it_works', '')
-            }
-            validated_clips.append(validated_clip)
+        for i, clip in enumerate(clips):
+            try:
+                # Ensure all required fields are present
+                validated_clip = {
+                    'start_timestamp': str(clip.get('start_timestamp', '00:00')),
+                    'end_timestamp': str(clip.get('end_timestamp', '00:00')),
+                    'duration_minutes': clip.get('duration_minutes', 0),
+                    'title_options': clip.get('title_options', {
+                        'punchy': 'Untitled Clip',
+                        'benefit': 'Untitled Clip',
+                        'curiosity': 'Untitled Clip'
+                    }),
+                    'engaging_quote': str(clip.get('engaging_quote', '')),
+                    'transcript_excerpt': str(clip.get('transcript_excerpt', '')),
+                    'why_it_works': str(clip.get('why_it_works', ''))
+                }
+                validated_clips.append(validated_clip)
+            except Exception as clip_err:
+                print(f"[WARN] Failed to validate clip {i}: {clip_err}")
+                continue
         
         return validated_clips
     except json.JSONDecodeError as e:
-        raise Exception(f"Failed to parse Gemini response as JSON: {str(e)}\nResponse: {response.text[:500]}")
+        print(f"[ERROR] JSON parse error: {e}")
+        print(f"[ERROR] Response was: {response.text[:1000]}")
+        raise Exception(f"Failed to parse Gemini response as JSON: {str(e)}")
     except Exception as e:
+        print(f"[ERROR] Gemini processing error: {e}")
         raise Exception(f"Error processing Gemini response: {str(e)}")
 
 def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_id=None):
