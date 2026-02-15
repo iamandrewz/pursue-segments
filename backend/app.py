@@ -486,171 +486,123 @@ def transcribe_with_whisper(audio_path, video_id):
     return transcript_data
 
 def analyze_clips_with_gemini(transcript_text, target_audience_profile):
-    """Analyze transcript and suggest clips using Gemini"""
+    """Analyze transcript and suggest clips using OpenAI GPT (renamed for backwards compat)"""
     try:
-        if not GEMINI_API_KEY:
-            raise Exception("Gemini API key not configured")
-        
-        # Build the prompt - use % formatting to avoid issues with { in transcript
-        prompt = CLIP_ANALYSIS_PROMPT % {
-            'target_audience_profile': target_audience_profile,
-            'transcript': transcript_text[:150000]
-        }
-        
-        # Call Gemini API
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            )
-        )
-        
-        # Parse JSON response
-        # Clean up the response text to extract JSON
-        response_text = response.text.strip()
-        print(f"[DEBUG] Raw Gemini response: {response_text[:1000]}")
-        
-        # Remove markdown code blocks if present
-        if response_text.startswith('```json'):
-            response_text = response_text[7:]
-        if response_text.startswith('```'):
-            response_text = response_text[3:]
-        if response_text.endswith('```'):
-            response_text = response_text[:-3]
-        
-        response_text = response_text.strip()
-        
-        # AGGRESSIVE JSON fixing for Gemini's malformed output
-        # Replace all newlines with spaces (Gemini puts newlines in JSON keys)
-        response_text = response_text.replace('\n', ' ')
-        response_text = response_text.replace('\r', ' ')
-        # Remove trailing commas
-        response_text = re.sub(r',\s*}', '}', response_text)
-        response_text = re.sub(r',\s*]', ']', response_text)
-        # Fix single quotes to double quotes (Gemini sometimes uses single quotes)
-        response_text = response_text.replace("'", '"')
-        # Fix multiple spaces
-        response_text = re.sub(r'\s+', ' ', response_text)
-        
-        print(f"[DEBUG] Cleaned JSON: {response_text[:1000]}")
-        
-        # Try to parse JSON, fallback to mock data if it fails
-        try:
-            clips = json.loads(response_text)
-        except json.JSONDecodeError as parse_err:
-            print(f"[ERROR] JSON parse failed: {parse_err}")
-            print(f"[ERROR] Full response: {response_text}")
-            print(f"[ERROR] Error at char: {getattr(parse_err, 'pos', 'unknown')}")
-            
-            # Try to extract JSON array with regex as last resort
-            import re
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                try:
-                    clips = json.loads(json_match.group(0))
-                    print("[INFO] Successfully extracted JSON with regex")
-                except:
-                    pass
-            
-            # Return fallback mock data so user sees something
+        if not OPENAI_AVAILABLE or not openai_client:
+            print("[WARN] OpenAI not available, returning fallback")
             return [{
                 'start_timestamp': '00:00',
                 'end_timestamp': '10:00',
                 'duration_minutes': 10,
                 'title_options': {
-                    'punchy': 'AI Analysis Complete (JSON Parse Error - Check Render Logs)',
-                    'benefit': f'Error: {str(parse_err)[:50]}',
-                    'curiosity': 'Raw response logged to console'
+                    'punchy': 'OpenAI API not configured',
+                    'benefit': 'Check API key',
+                    'curiosity': 'Add OPENAI_API_KEY'
                 },
-                'engaging_quote': f'The AI returned malformed JSON. Error: {str(parse_err)[:100]}',
-                'transcript_excerpt': f'Raw response (first 200 chars): {response_text[:200]}',
-                'why_it_works': 'This is a fallback response. The transcript was processed but clip extraction failed due to JSON parsing issues.'
+                'engaging_quote': 'OpenAI API key is missing or invalid.',
+                'transcript_excerpt': 'Transcript processed but clip analysis requires OpenAI API.',
+                'why_it_works': 'Please configure OPENAI_API_KEY environment variable.'
+            }]
+        
+        # Build the prompt
+        prompt = CLIP_ANALYSIS_PROMPT % {
+            'target_audience_profile': target_audience_profile,
+            'transcript': transcript_text[:150000]
+        }
+        
+        print("[INFO] Calling OpenAI GPT-4 for clip analysis...")
+        
+        # Call OpenAI API with JSON mode for guaranteed valid JSON
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",  # Fast and cheap
+            messages=[
+                {"role": "system", "content": "You are a podcast clip analysis expert. Always return valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+            max_tokens=2000
+        )
+        
+        # Parse the JSON response
+        response_text = response.choices[0].message.content
+        print(f"[DEBUG] OpenAI response: {response_text[:500]}")
+        
+        # OpenAI returns an object, we need the array inside
+        result = json.loads(response_text)
+        
+        # Handle both {clips: [...]} and [...] formats
+        if isinstance(result, list):
+            clips = result
+        elif isinstance(result, dict):
+            clips = result.get('clips', result.get('results', []))
+        else:
+            clips = []
+        
+        if not clips:
+            print("[WARN] No clips returned from OpenAI")
+            return [{
+                'start_timestamp': '00:00',
+                'end_timestamp': '10:00',
+                'duration_minutes': 10,
+                'title_options': {
+                    'punchy': 'No clips found',
+                    'benefit': 'Try longer video',
+                    'curiosity': '8-20 min clips'
+                },
+                'engaging_quote': 'No suitable clips were found in this video.',
+                'transcript_excerpt': 'The AI analyzed the transcript but could not identify strong clip candidates.',
+                'why_it_works': 'Clips need strong hooks, complete stories, and valuable content.'
             }]
         
         # Validate and clean up clips
         validated_clips = []
         for i, clip in enumerate(clips):
             try:
-                # Debug: print what we're working with
-                print(f"[DEBUG] Processing clip {i}: {type(clip)} - {clip}")
-                
-                # Handle case where clip might be a string or other non-dict type
                 if not isinstance(clip, dict):
-                    print(f"[WARN] Clip {i} is not a dict: {clip}")
+                    print(f"[WARN] Clip {i} is not a dict: {type(clip)}")
                     continue
                 
-                # Clean up keys - remove ALL whitespace and special chars
-                clean_clip = {}
-                for key, value in clip.items():
-                    # Aggressive key cleaning - remove everything except alphanumeric and underscore
-                    clean_key = str(key).strip()
-                    clean_key = clean_key.replace('\n', '').replace('\r', '').replace('\t', '')
-                    clean_key = clean_key.replace(' ', '').replace('"', '').replace("'", '')
-                    clean_key = clean_key.replace('    ', '').replace('   ', '').replace('  ', '')
-                    print(f"[DEBUG] Original key: '{repr(key)}' -> Cleaned: '{clean_key}'")
-                    clean_clip[clean_key] = value
-                
-                # Ensure all required fields are present with safe access
-                try:
-                    validated_clip = {
-                        'start_timestamp': str(clean_clip.get('start_timestamp', '00:00')),
-                        'end_timestamp': str(clean_clip.get('end_timestamp', '00:00')),
-                        'duration_minutes': clean_clip.get('duration_minutes', 0),
-                        'title_options': clean_clip.get('title_options', {
-                            'punchy': 'Untitled Clip',
-                            'benefit': 'Untitled Clip',
-                            'curiosity': 'Untitled Clip'
-                        }),
-                        'engaging_quote': str(clean_clip.get('engaging_quote', '')),
-                        'transcript_excerpt': str(clean_clip.get('transcript_excerpt', '')),
-                        'why_it_works': str(clean_clip.get('why_it_works', ''))
-                    }
-                    validated_clips.append(validated_clip)
-                except Exception as access_err:
-                    print(f"[ERROR] Failed to access clip fields: {access_err}")
-                    print(f"[ERROR] clean_clip keys: {list(clean_clip.keys())}")
-                    continue
-            except Exception as clip_err:
-                print(f"[WARN] Failed to validate clip {i}: {clip_err}")
-                import traceback
-                traceback.print_exc()
+                validated_clip = {
+                    'start_timestamp': str(clip.get('start_timestamp', '00:00')),
+                    'end_timestamp': str(clip.get('end_timestamp', '00:00')),
+                    'duration_minutes': clip.get('duration_minutes', 10),
+                    'title_options': clip.get('title_options', {
+                        'punchy': 'Clip ' + str(i+1),
+                        'benefit': 'Valuable Content',
+                        'curiosity': 'Must Watch'
+                    }),
+                    'engaging_quote': str(clip.get('engaging_quote', '')),
+                    'transcript_excerpt': str(clip.get('transcript_excerpt', '')),
+                    'why_it_works': str(clip.get('why_it_works', ''))
+                }
+                validated_clips.append(validated_clip)
+            except Exception as e:
+                print(f"[WARN] Failed to validate clip {i}: {e}")
                 continue
         
-        if not validated_clips:
-            print("[WARN] No valid clips found, returning fallback")
-            return [{
-                'start_timestamp': '00:00',
-                'end_timestamp': '10:00',
-                'duration_minutes': 10,
-                'title_options': {
-                    'punchy': 'Clip extraction failed - check logs',
-                    'benefit': 'No valid clips found',
-                    'curiosity': 'See server logs for details'
-                },
-                'engaging_quote': 'The AI returned data in an unexpected format. Check the server logs.',
-                'transcript_excerpt': 'Transcript was processed successfully but clip extraction encountered issues.',
-                'why_it_works': 'This is a fallback response. The transcript analysis completed but clip formatting failed.'
-            }]
+        print(f"[INFO] Successfully validated {len(validated_clips)} clips")
+        return validated_clips if validated_clips else [{
+            'start_timestamp': '00:00',
+            'end_timestamp': '10:00',
+            'duration_minutes': 10,
+            'title_options': {'punchy': 'Processing Error', 'benefit': 'Try Again', 'curiosity': 'Check Logs'},
+            'engaging_quote': 'Clip validation failed.',
+            'transcript_excerpt': 'The AI returned clips but they could not be validated.',
+            'why_it_works': 'Fallback response due to validation issues.'
+        }]
         
-        return validated_clips
     except Exception as e:
         import traceback
-        print(f"[FATAL ERROR] analyze_clips_with_gemini failed: {e}")
+        print(f"[FATAL ERROR] analyze_clips failed: {e}")
         print(f"[FATAL ERROR] Traceback: {traceback.format_exc()}")
-        # Return fallback instead of crashing
         return [{
             'start_timestamp': '00:00',
             'end_timestamp': '10:00',
             'duration_minutes': 10,
-            'title_options': {
-                'punchy': f'Error: {str(e)[:40]}',
-                'benefit': 'Check Render Logs',
-                'curiosity': 'See Console Output'
-            },
-            'engaging_quote': f'Analysis failed with error: {str(e)}. Check the server logs for full traceback.',
-            'transcript_excerpt': 'Transcript was processed but clip analysis encountered an error.',
+            'title_options': {'punchy': f'Error: {str(e)[:30]}', 'benefit': 'Check Logs', 'curiosity': 'See Console'},
+            'engaging_quote': f'Analysis failed: {str(e)}',
+            'transcript_excerpt': 'An error occurred during clip analysis.',
             'why_it_works': 'This is a fallback response due to a processing error.'
         }]
 
