@@ -782,7 +782,7 @@
                 console.log('XHR response status:', xhr.status);
                 console.log('XHR response text:', xhr.responseText);
                 
-                if (xhr.status === 200) {
+                if (xhr.status === 200 || xhr.status === 202) {
                     const data = JSON.parse(xhr.responseText);
                     progressFill.style.width = '100%';
                     progressPercent.textContent = '100%';
