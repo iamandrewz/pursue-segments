@@ -1,4 +1,4 @@
-const API_URL = 'https://pursue-segments-backend.onrender.com';
+const API_URL = 'http://localhost:5001';
 
 // ============================================================================
 // QUESTIONNAIRE API
