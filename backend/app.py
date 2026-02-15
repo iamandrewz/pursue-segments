@@ -1111,15 +1111,19 @@ def get_transcript(video_id):
 @app.route('/', methods=['GET'])
 def serve_frontend():
     """Serve the simple HTML upload form"""
+    print(f"[DEBUG] Serving root page, BACKEND_DIR={BACKEND_DIR}")
     try:
         return render_template('index.html')
     except Exception as e:
+        print(f"[DEBUG] Template error: {e}")
         # Fallback: serve directly if template not found
         index_path = os.path.join(BACKEND_DIR, 'templates', 'index.html')
+        print(f"[DEBUG] Looking for file at: {index_path}")
         if os.path.exists(index_path):
+            print("[DEBUG] Found file, serving directly")
             with open(index_path, 'r') as f:
                 return f.read()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': str(e), 'path': index_path}), 500
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):
@@ -1153,3 +1157,4 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT') or os.getenv('FLASK_PORT', 5001))
     print(f"[STARTUP] Starting Flask on port {port}", flush=True)
     app.run(host='0.0.0.0', port=port, debug=False)
+# Deploy Sat Feb 14 18:48:36 PST 2026
