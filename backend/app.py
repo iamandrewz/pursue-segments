@@ -706,8 +706,47 @@ def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
     except Exception as e:
         raise Exception(f"Failed to download audio: {str(e)}")
 
+def split_audio_for_whisper(audio_path, video_id, chunk_duration_minutes=10):
+    """Split large audio file into chunks for Whisper (25MB limit)"""
+    import subprocess
+    import math
+
+    # Get audio duration
+    cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+           '-of', 'default=noprint_wrappers=1:nokey=1', audio_path]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    total_duration = float(result.stdout.strip())
+
+    chunk_duration = chunk_duration_minutes * 60  # Convert to seconds
+    num_chunks = math.ceil(total_duration / chunk_duration)
+
+    chunks_dir = os.path.join(TRANSCRIPTS_DIR, f"chunks_{video_id}")
+    os.makedirs(chunks_dir, exist_ok=True)
+
+    chunk_files = []
+    for i in range(num_chunks):
+        start_time = i * chunk_duration
+        chunk_path = os.path.join(chunks_dir, f"chunk_{i:03d}.mp3")
+
+        # Extract chunk
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', audio_path,
+            '-ss', str(start_time),
+            '-t', str(chunk_duration),
+            '-vn', '-acodec', 'libmp3lame',
+            '-ar', '16000', '-ac', '1', '-b:a', '32k',
+            chunk_path
+        ]
+        subprocess.run(cmd, capture_output=True)
+
+        if os.path.exists(chunk_path):
+            chunk_files.append((chunk_path, start_time))
+
+    return chunk_files, total_duration
+
 def transcribe_with_whisper(audio_path, video_id):
-    """Transcribe audio using OpenAI Whisper API"""
+    """Transcribe audio using OpenAI Whisper API - splits large files"""
     if not openai_client:
         raise Exception("OpenAI API key not configured")
 
@@ -716,45 +755,98 @@ def transcribe_with_whisper(audio_path, video_id):
     if os.path.exists(transcript_file):
         return load_data(f"transcript_{video_id}.json", TRANSCRIPTS_DIR)
 
-    # Transcribe with Whisper
-    with open(audio_path, 'rb') as audio_file:
-        response = openai_client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            response_format="verbose_json",
-            timestamp_granularities=["segment"]
-        )
+    # Check file size
+    file_size = os.path.getsize(audio_path)
+    print(f"[WHISPER] Audio file size: {file_size / (1024*1024):.1f} MB")
 
-    # Format transcript with timestamps
-    segments = []
+    # If file is small enough, transcribe directly
+    if file_size < 24 * 1024 * 1024:  # Under 24MB
+        print(f"[WHISPER] Transcribing directly...")
+        with open(audio_path, 'rb') as audio_file:
+            response = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
+            )
+
+        segments = []
+        full_text = ""
+        for segment in response.segments:
+            start_time = format_seconds_to_timestamp(segment.start)
+            end_time = format_seconds_to_timestamp(segment.end)
+            text = segment.text.strip()
+            segments.append({
+                'start': start_time, 'end': end_time, 'text': text,
+                'start_seconds': segment.start, 'end_seconds': segment.end
+            })
+            full_text += f"[{start_time}] {text}\n"
+
+        transcript_data = {
+            'videoId': video_id, 'segments': segments, 'fullText': full_text,
+            'duration': format_seconds_to_timestamp(response.duration),
+            'createdAt': datetime.now().isoformat()
+        }
+        save_data(f"transcript_{video_id}.json", transcript_data, TRANSCRIPTS_DIR)
+        return transcript_data
+
+    # File too large - split into chunks
+    print(f"[WHISPER] File too large, splitting into chunks...")
+    chunk_files, total_duration = split_audio_for_whisper(audio_path, video_id)
+    print(f"[WHISPER] Split into {len(chunk_files)} chunks")
+
+    all_segments = []
     full_text = ""
 
-    for segment in response.segments:
-        start_time = format_seconds_to_timestamp(segment.start)
-        end_time = format_seconds_to_timestamp(segment.end)
-        text = segment.text.strip()
+    for idx, (chunk_path, chunk_offset) in enumerate(chunk_files):
+        print(f"[WHISPER] Transcribing chunk {idx+1}/{len(chunk_files)}...")
 
-        segments.append({
-            'start': start_time,
-            'end': end_time,
-            'text': text,
-            'start_seconds': segment.start,
-            'end_seconds': segment.end
-        })
+        with open(chunk_path, 'rb') as audio_file:
+            response = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
+            )
 
-        full_text += f"[{start_time}] {text}\n"
+        for segment in response.segments:
+            # Adjust timestamps for chunk offset
+            adjusted_start = segment.start + chunk_offset
+            adjusted_end = segment.end + chunk_offset
+
+            start_time = format_seconds_to_timestamp(adjusted_start)
+            end_time = format_seconds_to_timestamp(adjusted_end)
+            text = segment.text.strip()
+
+            all_segments.append({
+                'start': start_time, 'end': end_time, 'text': text,
+                'start_seconds': adjusted_start, 'end_seconds': adjusted_end
+            })
+            full_text += f"[{start_time}] {text}\n"
+
+        # Clean up chunk file
+        try:
+            os.remove(chunk_path)
+        except:
+            pass
+
+    # Clean up chunks directory
+    try:
+        chunks_dir = os.path.join(TRANSCRIPTS_DIR, f"chunks_{video_id}")
+        os.rmdir(chunks_dir)
+    except:
+        pass
 
     transcript_data = {
         'videoId': video_id,
-        'segments': segments,
+        'segments': all_segments,
         'fullText': full_text,
-        'duration': format_seconds_to_timestamp(response.duration),
+        'duration': format_seconds_to_timestamp(total_duration),
         'createdAt': datetime.now().isoformat()
     }
 
-    # Save transcript for caching
     save_data(f"transcript_{video_id}.json", transcript_data, TRANSCRIPTS_DIR)
-
+    print(f"[WHISPER] Transcription complete: {len(all_segments)} segments")
     return transcript_data
 
 def analyze_clips_with_gemini(transcript_text, target_audience_profile):
