@@ -661,11 +661,12 @@
         });
         
         function handleFileSelect(file) {
+            console.log('File selected:', file.name, file.size);
             selectedFile = file;
             
             fileName.textContent = file.name;
             sizeValue.textContent = formatFileSize(file.size);
-            fileInfo.classList.add('visible');
+            fileInfo.style.display = 'block';
             
             // Check if should use chunked upload
             const isChunked = shouldUseChunkedUpload(file, CHUNKED_THRESHOLD);
@@ -676,7 +677,10 @@
             
             uploadBtn.disabled = false;
             uploadBtn.textContent = 'Analyze Episode';
+            uploadBtn.style.opacity = '1';
             hideStatus();
+            
+            console.log('Button enabled');
         }
         
         function checkForResume(file) {
