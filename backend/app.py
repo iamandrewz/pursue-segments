@@ -541,20 +541,32 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             clips = json.loads(response_text)
         except json.JSONDecodeError as parse_err:
             print(f"[ERROR] JSON parse failed: {parse_err}")
-            print(f"[ERROR] Failed response: {response_text}")
+            print(f"[ERROR] Full response: {response_text}")
+            print(f"[ERROR] Error at char: {getattr(parse_err, 'pos', 'unknown')}")
+            
+            # Try to extract JSON array with regex as last resort
+            import re
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    clips = json.loads(json_match.group(0))
+                    print("[INFO] Successfully extracted JSON with regex")
+                except:
+                    pass
+            
             # Return fallback mock data so user sees something
             return [{
                 'start_timestamp': '00:00',
                 'end_timestamp': '10:00',
                 'duration_minutes': 10,
                 'title_options': {
-                    'punchy': 'AI Analysis Complete (JSON Parse Error)',
-                    'benefit': 'Check Logs for Gemini Output',
-                    'curiosity': 'Raw Response in Server Logs'
+                    'punchy': 'AI Analysis Complete (JSON Parse Error - Check Render Logs)',
+                    'benefit': f'Error: {str(parse_err)[:50]}',
+                    'curiosity': 'Raw response logged to console'
                 },
-                'engaging_quote': 'The AI had trouble formatting the response. Check the server logs to see what Gemini returned.',
-                'transcript_excerpt': 'Unable to parse Gemini JSON response. See server logs for details.',
-                'why_it_works': 'This is a fallback response because the AI returned malformed JSON. The transcript was successfully processed.'
+                'engaging_quote': f'The AI returned malformed JSON. Error: {str(parse_err)[:100]}',
+                'transcript_excerpt': f'Raw response (first 200 chars): {response_text[:200]}',
+                'why_it_works': 'This is a fallback response. The transcript was processed but clip extraction failed due to JSON parsing issues.'
             }]
         
         # Validate and clean up clips
