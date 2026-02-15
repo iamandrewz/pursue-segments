@@ -439,6 +439,16 @@ TARGET AUDIENCE PROFILE:
 TRANSCRIPT (with timestamps):
 %(transcript)s
 
+CRITICAL INSTRUCTIONS FOR TIMESTAMPS:
+The transcript above contains timestamps in [MM:SS] or [HH:MM:SS] format.
+You MUST use the EXACT timestamps from the transcript - do not invent or estimate times.
+
+For each clip:
+1. Find the hook/start point in the transcript and note its timestamp
+2. Find the natural end point and note its timestamp  
+3. Calculate duration from these exact timestamps
+4. Use the EXACT format shown in the transcript (e.g., "02:28" not "2:28")
+
 ANALYSIS CRITERIA:
 For each clip, find segments that have:
 1. Strong HOOK potential - Look for contrast statements, surprising revelations, or emotional reactions
@@ -454,41 +464,31 @@ IMPORTANT TIMING GUIDELINES:
 - Vary the clip lengths for variety (one ~8 min, one ~12 min, one ~15+ min)
 
 For each clip, provide:
-1. start_timestamp - When the clip should start (include the hook setup)
-2. end_timestamp - When the clip should end (complete thought)
-3. duration_minutes - Approximate length
-4. title_options - THREE different title options:
-   - Option 1: Punchy, attention-grabbing
-   - Option 2: Benefit-driven (what they'll learn)
-   - Option 3: Curiosity-inducing (makes them need to watch)
-5. engaging_quote - The most compelling 1-2 sentence quote from the segment
-6. transcript_excerpt - 200-300 words from the key part of the segment
-7. why_it_works - 2-3 sentences explaining why this segment resonates with the target audience
+1. start_timestamp - EXACT timestamp from transcript when hook begins (e.g., "02:28")
+2. end_timestamp - EXACT timestamp from transcript when clip ends (e.g., "05:04")
+3. duration_minutes - Calculated from timestamps above (e.g., 2.6)
+4. title_options - THREE different title options
+5. engaging_quote - Most compelling 1-2 sentence quote
+6. transcript_excerpt - 200-300 words from the key part
+7. why_it_works - Why this segment resonates
 
-Return ONLY a valid JSON array in this exact format:
+Return ONLY a valid JSON array:
 [
   {
-    "start_timestamp": "MM:SS or HH:MM:SS",
-    "end_timestamp": "MM:SS or HH:MM:SS",
-    "duration_minutes": 12.5,
-    "title_options": {
-      "punchy": "Short punchy title",
-      "benefit": "What you'll learn title",
-      "curiosity": "Makes you curious title"
-    },
-    "engaging_quote": "The most compelling quote...",
-    "transcript_excerpt": "200-300 words...",
-    "why_it_works": "Explanation of why this works..."
+    "start_timestamp": "02:28",
+    "end_timestamp": "05:04",
+    "duration_minutes": 2.6,
+    "title_options": {"punchy": "...", "benefit": "...", "curiosity": "..."},
+    "engaging_quote": "...",
+    "transcript_excerpt": "...",
+    "why_it_works": "..."
   }
 ]
 
-CRITICAL JSON FORMATTING RULES:
-- Return ONLY the JSON array, no other text before or after
-- NEVER put newlines inside string values - use \n for line breaks if needed
-- All string values must be on a single line
-- Use proper JSON escaping for quotes: \"
-- Ensure valid JSON that can be parsed by json.loads()
-- No trailing commas before closing brackets"""
+CRITICAL:
+- Use ONLY timestamps that appear in the transcript
+- Match the exact format: [MM:SS] or [HH:MM:SS]
+- Return valid JSON only"""
 
 # ============================================================================
 # PROFILE GENERATION FUNCTIONS
