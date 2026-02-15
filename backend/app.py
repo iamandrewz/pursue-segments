@@ -519,6 +519,12 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         
         response_text = response_text.strip()
         
+        # Fix common JSON formatting issues from Gemini
+        # Remove trailing commas before closing brackets
+        response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
+        # Replace problematic newlines in JSON keys
+        response_text = re.sub(r'\n\s*"', '"', response_text)
+        
         clips = json.loads(response_text)
         
         # Validate and clean up clips
