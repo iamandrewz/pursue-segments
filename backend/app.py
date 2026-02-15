@@ -592,21 +592,26 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                     print(f"[DEBUG] Original key: '{repr(key)}' -> Cleaned: '{clean_key}'")
                     clean_clip[clean_key] = value
                 
-                # Ensure all required fields are present
-                validated_clip = {
-                    'start_timestamp': str(clean_clip.get('start_timestamp', '00:00')),
-                    'end_timestamp': str(clean_clip.get('end_timestamp', '00:00')),
-                    'duration_minutes': clean_clip.get('duration_minutes', 0),
-                    'title_options': clean_clip.get('title_options', {
-                        'punchy': 'Untitled Clip',
-                        'benefit': 'Untitled Clip',
-                        'curiosity': 'Untitled Clip'
-                    }),
-                    'engaging_quote': str(clean_clip.get('engaging_quote', '')),
-                    'transcript_excerpt': str(clean_clip.get('transcript_excerpt', '')),
-                    'why_it_works': str(clean_clip.get('why_it_works', ''))
-                }
-                validated_clips.append(validated_clip)
+                # Ensure all required fields are present with safe access
+                try:
+                    validated_clip = {
+                        'start_timestamp': str(clean_clip.get('start_timestamp', '00:00')),
+                        'end_timestamp': str(clean_clip.get('end_timestamp', '00:00')),
+                        'duration_minutes': clean_clip.get('duration_minutes', 0),
+                        'title_options': clean_clip.get('title_options', {
+                            'punchy': 'Untitled Clip',
+                            'benefit': 'Untitled Clip',
+                            'curiosity': 'Untitled Clip'
+                        }),
+                        'engaging_quote': str(clean_clip.get('engaging_quote', '')),
+                        'transcript_excerpt': str(clean_clip.get('transcript_excerpt', '')),
+                        'why_it_works': str(clean_clip.get('why_it_works', ''))
+                    }
+                    validated_clips.append(validated_clip)
+                except Exception as access_err:
+                    print(f"[ERROR] Failed to access clip fields: {access_err}")
+                    print(f"[ERROR] clean_clip keys: {list(clean_clip.keys())}")
+                    continue
             except Exception as clip_err:
                 print(f"[WARN] Failed to validate clip {i}: {clip_err}")
                 import traceback
