@@ -881,7 +881,7 @@ def process_episode():
         return '', 204
     try:
         # Check if this is a file upload or JSON request
-        if request.files and 'videoFile' in request.files:
+        if request.files and 'video' in request.files:
             return process_file_upload()
         
         # Otherwise, process as YouTube URL (legacy)
@@ -945,7 +945,7 @@ def process_episode():
 def process_file_upload():
     """Handle file upload processing"""
     try:
-        video_file = request.files['videoFile']
+        video_file = request.files['video']
         podcast_name = request.form.get('podcastName', 'My Podcast')
         profile_id = request.form.get('profileId')
         
