@@ -75,6 +75,11 @@ def after_request(response):
 # Register chunked upload blueprint
 app.register_blueprint(chunked_bp)
 
+# Serve chunked-uploader.js from templates folder
+@app.route('/chunked-uploader.js')
+def serve_chunked_uploader():
+    return send_from_directory(os.path.join(BACKEND_DIR, 'templates'), 'chunked-uploader.js')
+
 # Configure APIs - lazy loading with error handling
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
