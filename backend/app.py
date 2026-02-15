@@ -275,11 +275,13 @@ Return ONLY a valid JSON array in this exact format:
   }
 ]
 
-IMPORTANT: 
-- Return ONLY the JSON array, no other text
-- Ensure timestamps match the format in the transcript
-- Make sure each clip is 8-20 minutes long
-- The JSON must be valid and parseable"""
+CRITICAL JSON FORMATTING RULES:
+- Return ONLY the JSON array, no other text before or after
+- NEVER put newlines inside string values - use \n for line breaks if needed
+- All string values must be on a single line
+- Use proper JSON escaping for quotes: \"
+- Ensure valid JSON that can be parsed by json.loads()
+- No trailing commas before closing brackets
 
 # ============================================================================
 # PROFILE GENERATION FUNCTIONS
@@ -532,7 +534,26 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         
         print(f"[DEBUG] Cleaned JSON: {response_text[:1000]}")
         
-        clips = json.loads(response_text)
+        # Try to parse JSON, fallback to mock data if it fails
+        try:
+            clips = json.loads(response_text)
+        except json.JSONDecodeError as parse_err:
+            print(f"[ERROR] JSON parse failed: {parse_err}")
+            print(f"[ERROR] Failed response: {response_text}")
+            # Return fallback mock data so user sees something
+            return [{
+                'start_timestamp': '00:00',
+                'end_timestamp': '10:00',
+                'duration_minutes': 10,
+                'title_options': {
+                    'punchy': 'AI Analysis Complete (JSON Parse Error)',
+                    'benefit': 'Check Logs for Gemini Output',
+                    'curiosity': 'Raw Response in Server Logs'
+                },
+                'engaging_quote': 'The AI had trouble formatting the response. Check the server logs to see what Gemini returned.',
+                'transcript_excerpt': 'Unable to parse Gemini JSON response. See server logs for details.',
+                'why_it_works': 'This is a fallback response because the AI returned malformed JSON. The transcript was successfully processed.'
+            }]
         
         # Validate and clean up clips
         validated_clips = []
