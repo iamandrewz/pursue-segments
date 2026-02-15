@@ -14,6 +14,8 @@ chunked_bp = Blueprint('chunked', __name__, url_prefix='/api/chunked')
 # Get the directory where this file is located
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
+print(f"[CHUNKED] Blueprint loaded, BACKEND_DIR: {BACKEND_DIR}")
+
 # Configuration - use app's data directory
 CHUNKED_UPLOAD_DIR = os.path.join(BACKEND_DIR, 'data', 'chunked_uploads')
 CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks (adjust as needed)
@@ -191,6 +193,7 @@ def complete_upload(upload_id=None):
     Request: { "uploadId": "uuid" }
     Response: { "filePath": "/path/to/final/file.mp4", "fileSize": 2147483648 }
     """
+    print(f"[CHUNKED] Complete endpoint called with upload_id: {upload_id}")
     try:
         # Handle both URL param and JSON body
         if upload_id is None:
