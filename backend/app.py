@@ -14,9 +14,6 @@ import hashlib
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Import chunked upload blueprint
-from chunked_uploads import chunked_bp
-
 # Optional imports - don't crash if missing
 try:
     import google.generativeai as genai
@@ -72,13 +69,205 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
-# Register chunked upload blueprint
-app.register_blueprint(chunked_bp)
+# Chunked upload configuration
+CHUNKED_UPLOAD_DIR = os.path.join(DATA_DIR, 'chunked_uploads')
+CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks
+os.makedirs(CHUNKED_UPLOAD_DIR, exist_ok=True)
+
+def get_upload_session(session_id):
+    """Load upload session data"""
+    session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_id}.json")
+    if os.path.exists(session_file):
+        with open(session_file, 'r') as f:
+            return json.load(f)
+    return None
+
+def save_upload_session(session_data):
+    """Save upload session data"""
+    session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_data['id']}.json")
+    with open(session_file, 'w') as f:
+        json.dump(session_data, f, indent=2)
 
 # Serve chunked-uploader.js from templates folder
 @app.route('/chunked-uploader.js')
 def serve_chunked_uploader():
     return send_from_directory(os.path.join(BACKEND_DIR, 'templates'), 'chunked-uploader.js')
+
+# CHUNKED UPLOAD ROUTES (inline for Render compatibility)
+@app.route('/api/chunked/initiate', methods=['POST'])
+def initiate_chunked_upload():
+    """Start a new chunked upload"""
+    try:
+        data = request.json
+        filename = data.get('filename')
+        file_size = data.get('fileSize')
+        chunk_size = data.get('chunkSize', CHUNK_SIZE)
+        
+        if not filename or not file_size:
+            return jsonify({'error': 'filename and fileSize are required'}), 400
+        
+        upload_id = str(uuid.uuid4())
+        total_chunks = (file_size + chunk_size - 1) // chunk_size
+        
+        session_data = {
+            'id': upload_id,
+            'filename': filename,
+            'fileSize': file_size,
+            'chunkSize': chunk_size,
+            'totalChunks': total_chunks,
+            'uploadedChunks': [],
+            'status': 'in_progress',
+            'createdAt': datetime.now().isoformat(),
+            'updatedAt': datetime.now().isoformat()
+        }
+        
+        upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
+        os.makedirs(upload_dir, exist_ok=True)
+        save_upload_session(session_data)
+        
+        return jsonify({
+            'uploadId': upload_id,
+            'chunkSize': chunk_size,
+            'totalChunks': total_chunks,
+            'status': 'in_progress'
+        }), 202
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chunked/upload', methods=['POST'])
+def upload_chunk():
+    """Upload a single chunk"""
+    try:
+        upload_id = request.form.get('uploadId')
+        chunk_index = int(request.form.get('chunkIndex', 0))
+        
+        if not upload_id:
+            return jsonify({'error': 'uploadId is required'}), 400
+        
+        if 'chunk' not in request.files:
+            return jsonify({'error': 'No chunk file provided'}), 400
+        
+        chunk_file = request.files['chunk']
+        session = get_upload_session(upload_id)
+        
+        if not session:
+            return jsonify({'error': 'Upload session not found'}), 404
+        
+        if session['status'] != 'in_progress':
+            return jsonify({'error': f'Upload already completed or failed'}), 400
+        
+        if chunk_index in session['uploadedChunks']:
+            return jsonify({
+                'chunkIndex': chunk_index,
+                'chunksUploaded': len(session['uploadedChunks']),
+                'progress': len(session['uploadedChunks']) / session['totalChunks'] * 100
+            }), 200
+        
+        upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
+        chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:05d}")
+        chunk_file.save(chunk_path)
+        
+        session['uploadedChunks'].append(chunk_index)
+        session['updatedAt'] = datetime.now().isoformat()
+        save_upload_session(session)
+        
+        progress = len(session['uploadedChunks']) / session['totalChunks'] * 100
+        
+        return jsonify({
+            'chunkIndex': chunk_index,
+            'chunksUploaded': len(session['uploadedChunks']),
+            'totalChunks': session['totalChunks'],
+            'progress': progress
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chunked/status/<upload_id>', methods=['GET'])
+def get_chunked_status(upload_id):
+    """Get upload progress/status"""
+    try:
+        session = get_upload_session(upload_id)
+        if not session:
+            return jsonify({'error': 'Upload session not found'}), 404
+        
+        return jsonify({
+            'status': session['status'],
+            'filename': session['filename'],
+            'fileSize': session['fileSize'],
+            'chunksUploaded': len(session['uploadedChunks']),
+            'totalChunks': session['totalChunks'],
+            'progress': len(session['uploadedChunks']) / session['totalChunks'] * 100
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chunked/complete', methods=['POST'])
+def complete_chunked_upload():
+    """Finalize upload - reassemble all chunks"""
+    try:
+        data = request.json
+        upload_id = data.get('uploadId') if data else None
+        
+        if not upload_id:
+            return jsonify({'error': 'uploadId is required'}), 400
+        
+        session = get_upload_session(upload_id)
+        if not session:
+            return jsonify({'error': 'Upload session not found'}), 404
+        
+        if session['status'] == 'completed':
+            return jsonify({
+                'status': 'completed',
+                'filePath': session.get('finalPath'),
+                'message': 'Upload already completed'
+            }), 200
+        
+        # Check if all chunks uploaded
+        expected_chunks = set(range(session['totalChunks']))
+        uploaded_chunks = set(session['uploadedChunks'])
+        missing_chunks = expected_chunks - uploaded_chunks
+        
+        if missing_chunks:
+            return jsonify({
+                'error': f'Missing chunks: {sorted(missing_chunks)[:10]}',
+                'missingCount': len(missing_chunks)
+            }), 400
+        
+        # Reassemble chunks
+        upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
+        final_dir = os.path.join(DATA_DIR, 'uploads')
+        os.makedirs(final_dir, exist_ok=True)
+        
+        final_filename = f"{upload_id}_{session['filename']}"
+        final_path = os.path.join(final_dir, final_filename)
+        
+        # Combine chunks
+        with open(final_path, 'wb') as outfile:
+            for i in range(session['totalChunks']):
+                chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
+                with open(chunk_path, 'rb') as infile:
+                    outfile.write(infile.read())
+        
+        actual_size = os.path.getsize(final_path)
+        
+        # Update session
+        session['status'] = 'completed'
+        session['finalPath'] = final_path
+        session['finalSize'] = actual_size
+        session['completedAt'] = datetime.now().isoformat()
+        save_upload_session(session)
+        
+        return jsonify({
+            'status': 'completed',
+            'filePath': final_path,
+            'filename': session['filename'],
+            'fileSize': actual_size,
+            'message': 'File reassembled successfully'
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 # Configure APIs - lazy loading with error handling
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
