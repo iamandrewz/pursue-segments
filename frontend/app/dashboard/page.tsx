@@ -31,7 +31,7 @@ import { ProfileData, JobStatusResponse } from '@/lib/types';
 // UTILITY FUNCTIONS
 // ============================================================================
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB in bytes
+const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB in bytes
 const ALLOWED_VIDEO_TYPES = [
   'video/mp4',
   'video/quicktime', // .mov
@@ -54,7 +54,7 @@ function isValidVideoFile(file: File): { valid: boolean; error?: string } {
   if (file.size > MAX_FILE_SIZE) {
     return { 
       valid: false, 
-      error: `File size exceeds 500MB limit. Your file is ${formatFileSize(file.size)}.` 
+      error: `File size exceeds 5GB limit. Your file is ${formatFileSize(file.size)}.` 
     };
   }
 
@@ -196,7 +196,7 @@ function HowItWorks() {
     {
       icon: <Upload className="w-6 h-6" />,
       title: "Upload Your Episode",
-      description: "Select a video file from your computer. We support MP4, MOV, AVI, MKV, and WEBM formats up to 500MB.",
+      description: "Select a video file from your computer. We support MP4, MOV, AVI, MKV, and WEBM formats up to 5GB.",
       color: "text-blue-400"
     },
     {
@@ -381,7 +381,7 @@ function FileUploadZone({ onFileSelect, selectedFile }: FileUploadZoneProps) {
             {isDragging ? 'Drop your video here' : 'Click or drag video to upload'}
           </p>
           <p className="text-sm text-gray-400 mt-1">
-            Supports MP4, MOV, AVI, MKV, WEBM up to 500MB
+            Supports MP4, MOV, AVI, MKV, WEBM up to 5GB
           </p>
         </div>
       </div>
@@ -608,7 +608,7 @@ function DashboardContent() {
                 {/* Hint Message */}
                 {!fileError && !selectedFile && (
                   <p className="mt-2 text-sm text-gray-500">
-                    Maximum file size: 500MB
+                    Maximum file size: 5GB
                   </p>
                 )}
               </div>
