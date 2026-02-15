@@ -89,13 +89,13 @@ def initiate_chunked_upload():
         filename = data.get('filename')
         file_size = data.get('fileSize')
         chunk_size = data.get('chunkSize', CHUNK_SIZE)
-        
+
         if not filename or not file_size:
             return jsonify({'error': 'filename and fileSize are required'}), 400
-        
+
         upload_id = str(uuid.uuid4())
         total_chunks = (file_size + chunk_size - 1) // chunk_size
-        
+
         session_data = {
             'id': upload_id,
             'filename': filename,
@@ -107,11 +107,11 @@ def initiate_chunked_upload():
             'createdAt': datetime.now().isoformat(),
             'updatedAt': datetime.now().isoformat()
         }
-        
+
         upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
         os.makedirs(upload_dir, exist_ok=True)
         save_upload_session(session_data)
-        
+
         return jsonify({
             'uploadId': upload_id,
             'chunkSize': chunk_size,
@@ -127,39 +127,39 @@ def upload_chunk():
     try:
         upload_id = request.form.get('uploadId')
         chunk_index = int(request.form.get('chunkIndex', 0))
-        
+
         if not upload_id:
             return jsonify({'error': 'uploadId is required'}), 400
-        
+
         if 'chunk' not in request.files:
             return jsonify({'error': 'No chunk file provided'}), 400
-        
+
         chunk_file = request.files['chunk']
         session = get_upload_session(upload_id)
-        
+
         if not session:
             return jsonify({'error': 'Upload session not found'}), 404
-        
+
         if session['status'] != 'in_progress':
             return jsonify({'error': f'Upload already completed or failed'}), 400
-        
+
         if chunk_index in session['uploadedChunks']:
             return jsonify({
                 'chunkIndex': chunk_index,
                 'chunksUploaded': len(session['uploadedChunks']),
                 'progress': len(session['uploadedChunks']) / session['totalChunks'] * 100
             }), 200
-        
+
         upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
         chunk_path = os.path.join(upload_dir, f"chunk_{chunk_index:05d}")
         chunk_file.save(chunk_path)
-        
+
         session['uploadedChunks'].append(chunk_index)
         session['updatedAt'] = datetime.now().isoformat()
         save_upload_session(session)
-        
+
         progress = len(session['uploadedChunks']) / session['totalChunks'] * 100
-        
+
         return jsonify({
             'chunkIndex': chunk_index,
             'chunksUploaded': len(session['uploadedChunks']),
@@ -176,7 +176,7 @@ def get_chunked_status(upload_id):
         session = get_upload_session(upload_id)
         if not session:
             return jsonify({'error': 'Upload session not found'}), 404
-        
+
         return jsonify({
             'status': session['status'],
             'filename': session['filename'],
@@ -194,56 +194,56 @@ def complete_chunked_upload():
     try:
         data = request.json
         upload_id = data.get('uploadId') if data else None
-        
+
         if not upload_id:
             return jsonify({'error': 'uploadId is required'}), 400
-        
+
         session = get_upload_session(upload_id)
         if not session:
             return jsonify({'error': 'Upload session not found'}), 404
-        
+
         if session['status'] == 'completed':
             return jsonify({
                 'status': 'completed',
                 'filePath': session.get('finalPath'),
                 'message': 'Upload already completed'
             }), 200
-        
+
         # Check if all chunks uploaded
         expected_chunks = set(range(session['totalChunks']))
         uploaded_chunks = set(session['uploadedChunks'])
         missing_chunks = expected_chunks - uploaded_chunks
-        
+
         if missing_chunks:
             return jsonify({
                 'error': f'Missing chunks: {sorted(missing_chunks)[:10]}',
                 'missingCount': len(missing_chunks)
             }), 400
-        
+
         # Reassemble chunks
         upload_dir = os.path.join(CHUNKED_UPLOAD_DIR, upload_id)
         final_dir = os.path.join(DATA_DIR, 'uploads')
         os.makedirs(final_dir, exist_ok=True)
-        
+
         final_filename = f"{upload_id}_{session['filename']}"
         final_path = os.path.join(final_dir, final_filename)
-        
+
         # Combine chunks
         with open(final_path, 'wb') as outfile:
             for i in range(session['totalChunks']):
                 chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
                 with open(chunk_path, 'rb') as infile:
                     outfile.write(infile.read())
-        
+
         actual_size = os.path.getsize(final_path)
-        
+
         # Update session
         session['status'] = 'completed'
         session['finalPath'] = final_path
         session['finalSize'] = actual_size
         session['completedAt'] = datetime.now().isoformat()
         save_upload_session(session)
-        
+
         return jsonify({
             'status': 'completed',
             'filePath': final_path,
@@ -328,7 +328,7 @@ def extract_youtube_id(url):
         r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([^&\s?#]+)',
         r'^([a-zA-Z0-9_-]{11})$'  # Direct video ID
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, url)
         if match:
@@ -349,7 +349,7 @@ def format_seconds_to_timestamp(seconds):
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
-    
+
     if hours > 0:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
@@ -366,7 +366,7 @@ def calculate_duration(start_time, end_time):
 # ============================================================================
 
 PROFILE_GENERATION_PROMPT = """You are an expert YouTube Podcast Content Strategist and audience persona specialist.
-Write a short, punchy Target Audience & Responsibilities Outline for {podcast_name}, based on the questions and answers submitted by the Podcast Host below. The output must be no longer than 400–450 words and must follow the same structure, tone, and paragraph length.
+Write a short, punchy Target Audience & Responsibilities Outline for {podcast_name}, based on the questions and answers submitted by the Podcast Host below. The output must be no longer than 400-450 words and must follow the same structure, tone, and paragraph length.
 
 Follow this structure EXACTLY:
 
@@ -374,12 +374,12 @@ Follow this structure EXACTLY:
 Hello,
 
 2. Next line:
-You are now the Head of Podcast Content Strategy for {podcast_name}. Your mission is to ensure every episode we publish—especially on YouTube and podcast platforms—is optimized to attract, engage, and convert our ideal audience.
+You are now the Head of Podcast Content Strategy for {podcast_name}. Your mission is to ensure every episode we publish-especially on YouTube and podcast platforms-is optimized to attract, engage, and convert our ideal audience.
 
 3. Add a heading line:
 Our target audience:
 
-4. Then write 8–10 short paragraphs (1–2 sentences each) that:
+4. Then write 8-10 short paragraphs (1-2 sentences each) that:
    - Describe who they are (role, age, gender, location, income, education).
    - Describe their mindset and values.
    - Describe their interests and passions.
@@ -394,7 +394,7 @@ Primarily [insert profession], mostly [insert gender], ages [insert age range], 
 6. After those audience paragraphs, add a heading line:
 Your responsibilities:
 
-7. Then write 5–7 bullet points that describe how to create and position content for this audience, including:
+7. Then write 5-7 bullet points that describe how to create and position content for this audience, including:
    - Titles, descriptions, and thumbnails.
    - Core challenges to address.
    - Types of stories, case studies, and "hot takes."
@@ -469,7 +469,7 @@ Return ONLY a valid JSON array in this exact format:
 [
   {
     "start_timestamp": "MM:SS or HH:MM:SS",
-    "end_timestamp": "MM:SS or HH:MM:SS", 
+    "end_timestamp": "MM:SS or HH:MM:SS",
     "duration_minutes": 12.5,
     "title_options": {
       "punchy": "Short punchy title",
@@ -505,25 +505,25 @@ def format_section_answers(answers, section_name):
 
 def generate_profile_with_gemini(podcast_name, host_names, answers):
     """Generate target audience profile using Gemini 2.0 Flash"""
-    
+
     print(f"[DEBUG] Starting profile generation for podcast: {podcast_name}")
-    
+
     if not GEMINI_API_KEY:
         print("[ERROR] Gemini API key not configured")
         raise Exception("Gemini API key not configured. Please contact support.")
-    
+
     try:
         # Format all sections
         section_map = {
             'section1': 'q1',
-            'section2': 'q2', 
+            'section2': 'q2',
             'section3': 'q3',
             'section4': 'q4',
             'section5': 'q5',
             'section6': 'q6',
             'section7': 'q7'
         }
-        
+
         formatted_sections = {}
         for section_key, section_prefix in section_map.items():
             section_answers = {k: v for k, v in answers.items() if k.startswith(section_prefix)}
@@ -532,9 +532,9 @@ def generate_profile_with_gemini(podcast_name, host_names, answers):
                 q_num = q_key.replace(section_prefix, '').strip('_')
                 formatted_lines.append(f"{q_num}. {value}")
             formatted_sections[section_key] = '\n'.join(formatted_lines) if formatted_lines else "No answers provided."
-        
+
         print(f"[DEBUG] Formatted sections: {list(formatted_sections.keys())}")
-        
+
         # Build the prompt
         prompt = PROFILE_GENERATION_PROMPT.format(
             podcast_name=podcast_name,
@@ -547,9 +547,9 @@ def generate_profile_with_gemini(podcast_name, host_names, answers):
             section6=formatted_sections['section6'],
             section7=formatted_sections['section7']
         )
-        
+
         print(f"[DEBUG] Calling Gemini API...")
-        
+
         # Call Gemini API
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(
@@ -559,14 +559,14 @@ def generate_profile_with_gemini(podcast_name, host_names, answers):
                 max_output_tokens=800,
             )
         )
-        
+
         print(f"[DEBUG] Gemini API response received, length: {len(response.text) if response.text else 0}")
-        
+
         if not response.text:
             raise Exception("Gemini returned empty response")
-        
+
         return response.text
-        
+
     except Exception as e:
         print(f"[ERROR] Error generating profile: {str(e)}")
         raise Exception(f"Failed to generate profile: {str(e)}")
@@ -578,30 +578,30 @@ def generate_profile_with_gemini(podcast_name, host_names, answers):
 def update_job_status(job_id, status, progress_message=None, **kwargs):
     """Update job status and save to file"""
     job_file = os.path.join(JOBS_DIR, f"job_{job_id}.json")
-    
+
     job_data = load_data(f"job_{job_id}.json", JOBS_DIR) or {}
     job_data['status'] = status
     job_data['updatedAt'] = datetime.now().isoformat()
-    
+
     if progress_message:
         job_data['progressMessage'] = progress_message
-    
+
     # Update any additional fields
     for key, value in kwargs.items():
         job_data[key] = value
-    
+
     save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
     return job_data
 
 def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
     """Download audio from YouTube video using yt-dlp"""
     import subprocess
-    
+
     output_path = os.path.join(output_dir, f"{video_id}.mp3")
-    
+
     # Path to cookies file (for YouTube authentication)
     cookies_path = os.path.join(DATA_DIR, 'youtube.txt')
-    
+
     # yt-dlp command for audio-only download
     cmd = [
         'yt-dlp',
@@ -614,19 +614,19 @@ def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
         '--quiet',
         '--no-warnings'
     ]
-    
+
     # Add cookies if file exists
     if os.path.exists(cookies_path):
         cmd.extend(['--cookies', cookies_path])
         print(f"[DEBUG] Using cookies from {cookies_path}")
-    
+
     cmd.append(youtube_url)
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
             raise Exception(f"yt-dlp failed: {result.stderr}")
-        
+
         if not os.path.exists(output_path):
             # Try to find the file with possible suffix
             possible_files = [f for f in os.listdir(output_dir) if f.startswith(video_id) and f.endswith('.mp3')]
@@ -634,7 +634,7 @@ def download_youtube_audio(youtube_url, video_id, output_dir='/tmp'):
                 output_path = os.path.join(output_dir, possible_files[0])
             else:
                 raise Exception("Audio file not found after download")
-        
+
         return output_path
     except subprocess.TimeoutExpired:
         raise Exception("Download timed out after 5 minutes")
@@ -645,12 +645,12 @@ def transcribe_with_whisper(audio_path, video_id):
     """Transcribe audio using OpenAI Whisper API"""
     if not openai_client:
         raise Exception("OpenAI API key not configured")
-    
+
     # Check if transcript already exists (caching)
     transcript_file = os.path.join(TRANSCRIPTS_DIR, f"transcript_{video_id}.json")
     if os.path.exists(transcript_file):
         return load_data(f"transcript_{video_id}.json", TRANSCRIPTS_DIR)
-    
+
     # Transcribe with Whisper
     with open(audio_path, 'rb') as audio_file:
         response = openai_client.audio.transcriptions.create(
@@ -659,16 +659,16 @@ def transcribe_with_whisper(audio_path, video_id):
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
-    
+
     # Format transcript with timestamps
     segments = []
     full_text = ""
-    
+
     for segment in response.segments:
         start_time = format_seconds_to_timestamp(segment.start)
         end_time = format_seconds_to_timestamp(segment.end)
         text = segment.text.strip()
-        
+
         segments.append({
             'start': start_time,
             'end': end_time,
@@ -676,9 +676,9 @@ def transcribe_with_whisper(audio_path, video_id):
             'start_seconds': segment.start,
             'end_seconds': segment.end
         })
-        
+
         full_text += f"[{start_time}] {text}\n"
-    
+
     transcript_data = {
         'videoId': video_id,
         'segments': segments,
@@ -686,10 +686,10 @@ def transcribe_with_whisper(audio_path, video_id):
         'duration': format_seconds_to_timestamp(response.duration),
         'createdAt': datetime.now().isoformat()
     }
-    
+
     # Save transcript for caching
     save_data(f"transcript_{video_id}.json", transcript_data, TRANSCRIPTS_DIR)
-    
+
     return transcript_data
 
 def analyze_clips_with_gemini(transcript_text, target_audience_profile):
@@ -710,15 +710,15 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                 'transcript_excerpt': 'Transcript processed but clip analysis requires OpenAI API.',
                 'why_it_works': 'Please configure OPENAI_API_KEY environment variable.'
             }]
-        
+
         # Build the prompt
         prompt = CLIP_ANALYSIS_PROMPT % {
             'target_audience_profile': target_audience_profile,
             'transcript': transcript_text[:150000]
         }
-        
+
         print("[INFO] Calling OpenAI GPT-4 for clip analysis...")
-        
+
         # Call OpenAI API with JSON mode for guaranteed valid JSON
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",  # Fast and cheap
@@ -730,14 +730,14 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             temperature=0.7,
             max_tokens=2000
         )
-        
+
         # Parse the JSON response
         response_text = response.choices[0].message.content
         print(f"[DEBUG] OpenAI response: {response_text[:500]}")
-        
+
         # OpenAI returns an object, we need the array inside
         result = json.loads(response_text)
-        
+
         # Handle both {clips: [...]} and [...] formats
         if isinstance(result, list):
             clips = result
@@ -745,7 +745,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             clips = result.get('clips', result.get('results', []))
         else:
             clips = []
-        
+
         if not clips:
             print("[WARN] No clips returned from OpenAI")
             return [{
@@ -761,7 +761,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                 'transcript_excerpt': 'The AI analyzed the transcript but could not identify strong clip candidates.',
                 'why_it_works': 'Clips need strong hooks, complete stories, and valuable content.'
             }]
-        
+
         # Validate and clean up clips
         validated_clips = []
         for i, clip in enumerate(clips):
@@ -769,7 +769,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                 if not isinstance(clip, dict):
                     print(f"[WARN] Clip {i} is not a dict: {type(clip)}")
                     continue
-                
+
                 validated_clip = {
                     'start_timestamp': str(clip.get('start_timestamp', '00:00')),
                     'end_timestamp': str(clip.get('end_timestamp', '00:00')),
@@ -787,7 +787,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             except Exception as e:
                 print(f"[WARN] Failed to validate clip {i}: {e}")
                 continue
-        
+
         print(f"[INFO] Successfully validated {len(validated_clips)} clips")
         return validated_clips if validated_clips else [{
             'start_timestamp': '00:00',
@@ -798,7 +798,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             'transcript_excerpt': 'The AI returned clips but they could not be validated.',
             'why_it_works': 'Fallback response due to validation issues.'
         }]
-        
+
     except Exception as e:
         import traceback
         print(f"[FATAL ERROR] analyze_clips failed: {e}")
@@ -816,43 +816,43 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
 def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_id=None):
     """Process episode in background thread"""
     audio_path = None
-    
+
     try:
         # Step 1: Download audio
         update_job_status(job_id, 'downloading', 'Downloading audio from YouTube...')
         audio_path = download_youtube_audio(youtube_url, video_id)
-        
+
         # Step 2: Transcribe
         update_job_status(job_id, 'transcribing', 'Transcribing audio with Whisper...')
         transcript_data = transcribe_with_whisper(audio_path, video_id)
-        
+
         # Step 3: Get target audience profile
         update_job_status(job_id, 'analyzing', 'Retrieving target audience profile...')
-        
+
         target_audience_profile = ""
         if profile_id:
             profile_data = load_data(f"profile_{profile_id}.json", DATA_DIR)
             if profile_data:
                 target_audience_profile = profile_data.get('profile', '')
-        
+
         # If no profile, use a default
         if not target_audience_profile:
             target_audience_profile = f"Target audience for {podcast_name}. Engaged listeners interested in podcast content."
-        
+
         # Step 4: Analyze clips
         update_job_status(job_id, 'analyzing', 'AI analyzing segments for clip opportunities...')
         clips = analyze_clips_with_gemini(transcript_data['fullText'], target_audience_profile)
-        
+
         # Step 5: Complete
         update_job_status(
-            job_id, 
-            'complete', 
+            job_id,
+            'complete',
             'Analysis complete!',
             transcript=transcript_data,
             clips=clips,
             clipCount=len(clips)
         )
-        
+
     except Exception as e:
         update_job_status(job_id, 'failed', f'Error: {str(e)}', error=str(e))
     finally:
@@ -869,38 +869,38 @@ def process_file_async(job_id, file_path, video_id, podcast_name, profile_id=Non
         # Step 1: Extract audio from uploaded video
         update_job_status(job_id, 'downloading', 'Extracting audio from video...')
         audio_path = extract_audio_from_file(file_path, video_id)
-        
+
         # Step 2: Transcribe
         update_job_status(job_id, 'transcribing', 'Transcribing audio with Whisper...')
         transcript_data = transcribe_with_whisper(audio_path, video_id)
-        
+
         # Step 3: Get target audience profile
         update_job_status(job_id, 'analyzing', 'Retrieving target audience profile...')
-        
+
         target_audience_profile = ""
         if profile_id:
             profile_data = load_data(f"profile_{profile_id}.json", DATA_DIR)
             if profile_data:
                 target_audience_profile = profile_data.get('profile', '')
-        
+
         # If no profile, use a default
         if not target_audience_profile:
             target_audience_profile = f"Target audience for {podcast_name}. Engaged listeners interested in podcast content."
-        
+
         # Step 4: Analyze clips
         update_job_status(job_id, 'analyzing', 'AI analyzing segments for clip opportunities...')
         clips = analyze_clips_with_gemini(transcript_data['fullText'], target_audience_profile)
-        
+
         # Step 5: Complete
         update_job_status(
-            job_id, 
-            'complete', 
+            job_id,
+            'complete',
             'Analysis complete!',
             transcript=transcript_data,
             clips=clips,
             clipCount=len(clips)
         )
-        
+
     except Exception as e:
         update_job_status(job_id, 'failed', f'Error: {str(e)}', error=str(e))
     finally:
@@ -919,9 +919,9 @@ def process_file_async(job_id, file_path, video_id, podcast_name, profile_id=Non
 def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
     """Extract audio from uploaded video file using ffmpeg"""
     import subprocess
-    
+
     output_path = os.path.join(output_dir, f"{video_id}.mp3")
-    
+
     # ffmpeg command to extract audio
     cmd = [
         'ffmpeg',
@@ -932,15 +932,15 @@ def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
         '-y',  # Overwrite if exists
         output_path
     ]
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
             raise Exception(f"ffmpeg failed: {result.stderr}")
-        
+
         if not os.path.exists(output_path):
             raise Exception("Audio file not found after extraction")
-        
+
         return output_path
     except subprocess.TimeoutExpired:
         raise Exception("Audio extraction timed out after 5 minutes")
@@ -968,15 +968,15 @@ def save_questionnaire():
         return '', 204
     try:
         data = request.json
-        
+
         if not data.get('podcastName'):
             return jsonify({'error': 'Podcast name is required'}), 400
-        
+
         if not data.get('answers'):
             return jsonify({'error': 'Answers are required'}), 400
-        
+
         questionnaire_id = str(uuid.uuid4())
-        
+
         questionnaire_data = {
             'id': questionnaire_id,
             'podcastName': data['podcastName'],
@@ -985,16 +985,16 @@ def save_questionnaire():
             'createdAt': datetime.now().isoformat(),
             'status': 'completed'
         }
-        
+
         filename = f"questionnaire_{questionnaire_id}.json"
         save_data(filename, questionnaire_data)
-        
+
         return jsonify({
             'id': questionnaire_id,
             'status': 'success',
             'message': 'Questionnaire saved successfully'
         }), 201
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1006,12 +1006,12 @@ def get_questionnaire(questionnaire_id):
     try:
         filename = f"questionnaire_{questionnaire_id}.json"
         data = load_data(filename)
-        
+
         if not data:
             return jsonify({'error': 'Questionnaire not found'}), 404
-        
+
         return jsonify(data), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1021,35 +1021,35 @@ def generate_profile():
     if request.method == 'OPTIONS':
         return '', 204
     print(f"[DEBUG] /api/generate-profile called")
-    
+
     try:
         data = request.json
         print(f"[DEBUG] Request data: {data}")
-        
+
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-            
+
         questionnaire_id = data.get('questionnaireId')
-        
+
         if not questionnaire_id:
             print("[ERROR] Questionnaire ID missing")
             return jsonify({'error': 'Questionnaire ID is required'}), 400
-        
+
         filename = f"questionnaire_{questionnaire_id}.json"
         questionnaire = load_data(filename)
-        
+
         if not questionnaire:
             print(f"[ERROR] Questionnaire not found: {questionnaire_id}")
             return jsonify({'error': 'Questionnaire not found'}), 404
-        
+
         print(f"[DEBUG] Generating profile for podcast: {questionnaire.get('podcastName')}")
-        
+
         profile_text = generate_profile_with_gemini(
             podcast_name=questionnaire['podcastName'],
             host_names=questionnaire.get('hostNames', ''),
             answers=questionnaire['answers']
         )
-        
+
         profile_id = str(uuid.uuid4())
         profile_data = {
             'id': profile_id,
@@ -1059,26 +1059,26 @@ def generate_profile():
             'wordCount': len(profile_text.split()),
             'createdAt': datetime.now().isoformat()
         }
-        
+
         profile_filename = f"profile_{profile_id}.json"
         save_data(profile_filename, profile_data)
-        
+
         questionnaire['profileId'] = profile_id
         save_data(filename, questionnaire)
-        
+
         print(f"[DEBUG] Profile generated successfully: {profile_id}")
-        
+
         return jsonify({
             'id': profile_id,
             'profile': profile_text,
             'wordCount': profile_data['wordCount'],
             'status': 'success'
         }), 200
-        
+
     except Exception as e:
         error_msg = str(e)
         print(f"[ERROR] Error in generate_profile: {error_msg}")
-        
+
         # Return user-friendly error messages
         if "Gemini API key" in error_msg:
             return jsonify({'error': 'AI service temporarily unavailable. Please try again in a moment.'}), 503
@@ -1097,12 +1097,12 @@ def get_profile(profile_id):
     try:
         filename = f"profile_{profile_id}.json"
         data = load_data(filename)
-        
+
         if not data:
             return jsonify({'error': 'Profile not found'}), 404
-        
+
         return jsonify(data), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1123,14 +1123,14 @@ def get_user_profiles(user_id):
                         'createdAt': data['createdAt'],
                         'wordCount': data.get('wordCount', 0)
                     })
-        
+
         profiles.sort(key=lambda x: x['createdAt'], reverse=True)
-        
+
         return jsonify({
             'profiles': profiles,
             'count': len(profiles)
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1140,39 +1140,44 @@ def get_user_profiles(user_id):
 
 @app.route('/api/process-episode', methods=['POST', 'OPTIONS'])
 def process_episode():
-    """Start processing a YouTube episode or uploaded file"""
+    """Start processing a YouTube episode, uploaded file, or server-side file path"""
     if request.method == 'OPTIONS':
         return '', 204
     try:
-        # Check if this is a file upload or JSON request
+        # Check if this is a file upload
         if request.files and 'video' in request.files:
             return process_file_upload()
-        
-        # Otherwise, process as YouTube URL (legacy)
-        data = request.json
+
+        # Otherwise, process as JSON request
+        data = request.json or {}
         print(f"[DEBUG] /api/process-episode called with data: {data}")
-        
-        # Validate required fields
+
+        # Check if it's a server-side file path (from chunked upload)
+        file_path = data.get('filePath')
+        if file_path and os.path.exists(file_path):
+            return process_server_file(file_path, data)
+
+        # Otherwise, process as YouTube URL
         youtube_url = data.get('youtubeUrl')
         podcast_name = data.get('podcastName')
         profile_id = data.get('profileId')
         user_id = data.get('userId')
         print(f"[DEBUG] youtube_url: {youtube_url}, podcast_name: {podcast_name}, profile_id: {profile_id}")
-        
+
         if not youtube_url:
             return jsonify({'error': 'YouTube URL is required'}), 400
-        
+
         if not podcast_name:
             return jsonify({'error': 'Podcast name is required'}), 400
-        
+
         # Extract YouTube video ID
         video_id = extract_youtube_id(youtube_url)
         if not video_id:
             return jsonify({'error': 'Invalid YouTube URL. Please provide a valid YouTube video URL.'}), 400
-        
+
         # Generate job ID
         job_id = str(uuid.uuid4())
-        
+
         # Create job record
         job_data = {
             'id': job_id,
@@ -1186,9 +1191,9 @@ def process_episode():
             'createdAt': datetime.now().isoformat(),
             'updatedAt': datetime.now().isoformat()
         }
-        
+
         save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
-        
+
         # Start async processing
         thread = threading.Thread(
             target=process_episode_async,
@@ -1196,13 +1201,13 @@ def process_episode():
         )
         thread.daemon = True
         thread.start()
-        
+
         return jsonify({
             'jobId': job_id,
             'status': 'queued',
             'message': 'Episode processing started'
         }), 202
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1212,25 +1217,69 @@ def process_file_upload():
         video_file = request.files['video']
         podcast_name = request.form.get('podcastName', 'My Podcast')
         profile_id = request.form.get('profileId')
-        
+
         if not video_file:
             return jsonify({'error': 'Video file is required'}), 400
-        
+
         # Validate file type
         allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
         file_ext = os.path.splitext(video_file.filename)[1].lower()
         if file_ext not in allowed_extensions:
             return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
-        
+
         # Generate job ID and video ID
         job_id = str(uuid.uuid4())
         video_id = f"upload_{job_id[:8]}"
-        
+
         # Save uploaded file
         upload_dir = os.path.join(DATA_DIR, 'uploads')
         os.makedirs(upload_dir, exist_ok=True)
         file_path = os.path.join(upload_dir, f"{video_id}{file_ext}")
         video_file.save(file_path)
+
+        # Create job record
+        job_data = {
+            'id': job_id,
+            'videoId': video_id,
+            'podcastName': podcast_name,
+            'profileId': profile_id,
+            'status': 'queued',
+            'progressMessage': 'Queued for processing...',
+            'createdAt': datetime.now().isoformat(),
+            'updatedAt': datetime.now().isoformat()
+        }
+
+        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+
+        # Start async processing
+        thread = threading.Thread(
+            target=process_file_async,
+            args=(job_id, file_path, video_id, podcast_name, profile_id)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            'jobId': job_id,
+            'status': 'queued',
+            'message': 'Episode processing started'
+        }), 202
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def process_server_file(file_path, data):
+    """Handle processing of a server-side file (from chunked upload)"""
+    try:
+        podcast_name = data.get('podcastName', 'My Podcast')
+        profile_id = data.get('profileId')
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'File not found on server'}), 404
+        
+        # Generate job ID and video ID
+        job_id = str(uuid.uuid4())
+        video_id = f"chunked_{job_id[:8]}"
         
         # Create job record
         job_data = {
@@ -1259,7 +1308,7 @@ def process_file_upload():
             'status': 'queued',
             'message': 'Episode processing started'
         }), 202
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1270,10 +1319,10 @@ def get_job_status(job_id):
         return '', 204
     try:
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
-        
+
         if not job_data:
             return jsonify({'error': 'Job not found'}), 404
-        
+
         # Build response based on status
         response = {
             'jobId': job_data['id'],
@@ -1283,22 +1332,22 @@ def get_job_status(job_id):
             'createdAt': job_data.get('createdAt'),
             'updatedAt': job_data.get('updatedAt')
         }
-        
+
         # Include transcript if available
         if 'transcript' in job_data:
             response['transcript'] = job_data['transcript']
-        
+
         # Include clips if available
         if 'clips' in job_data:
             response['clips'] = job_data['clips']
             response['clipCount'] = job_data.get('clipCount', 0)
-        
+
         # Include error if failed
         if 'error' in job_data:
             response['error'] = job_data['error']
-        
+
         return jsonify(response), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1311,19 +1360,19 @@ def analyze_clips():
         data = request.json
         job_id = data.get('jobId')
         target_audience_profile = data.get('targetAudienceProfile')
-        
+
         if not job_id:
             return jsonify({'error': 'Job ID is required'}), 400
-        
+
         # Load job data
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
         if not job_data:
             return jsonify({'error': 'Job not found'}), 404
-        
+
         # Check if transcript exists
         if 'transcript' not in job_data:
             return jsonify({'error': 'Transcript not yet available. Please wait for transcription to complete.'}), 400
-        
+
         # Get target audience profile
         if not target_audience_profile:
             # Try to load from profile_id
@@ -1332,26 +1381,26 @@ def analyze_clips():
                 profile_data = load_data(f"profile_{profile_id}.json", DATA_DIR)
                 if profile_data:
                     target_audience_profile = profile_data.get('profile', '')
-        
+
         if not target_audience_profile:
             target_audience_profile = f"Target audience for {job_data.get('podcastName', 'podcast')}"
-        
+
         # Analyze clips
         transcript_text = job_data['transcript']['fullText']
         clips = analyze_clips_with_gemini(transcript_text, target_audience_profile)
-        
+
         # Update job with clips
         job_data['clips'] = clips
         job_data['clipCount'] = len(clips)
         job_data['updatedAt'] = datetime.now().isoformat()
         save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
-        
+
         return jsonify({
             'clips': clips,
             'clipCount': len(clips),
             'status': 'success'
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1362,12 +1411,12 @@ def get_transcript(video_id):
         return '', 204
     try:
         transcript_data = load_data(f"transcript_{video_id}.json", TRANSCRIPTS_DIR)
-        
+
         if not transcript_data:
             return jsonify({'error': 'Transcript not found'}), 404
-        
+
         return jsonify(transcript_data), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1382,17 +1431,17 @@ def get_full_transcript(job_id):
         return '', 204
     try:
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
-        
+
         if not job_data:
             return jsonify({'error': 'Job not found'}), 404
-        
+
         # Check if transcript exists
         if 'transcript' not in job_data:
             return jsonify({'error': 'Transcript not yet available'}), 400
-        
+
         transcript = job_data['transcript']
         segments = transcript.get('segments', [])
-        
+
         # Build formatted transcript with text including timestamps
         formatted_segments = []
         for seg in segments:
@@ -1407,10 +1456,10 @@ def get_full_transcript(job_id):
                 'text': seg['text'],
                 'timestamp_text': timestamp_text
             })
-        
+
         # Get clips if available
         clips = job_data.get('clips', [])
-        
+
         return jsonify({
             'jobId': job_id,
             'videoId': job_data.get('videoId'),
@@ -1420,7 +1469,7 @@ def get_full_transcript(job_id):
             'clips': clips,
             'fullText': transcript.get('fullText', '')
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1435,7 +1484,7 @@ def save_clip(job_id):
         start_timestamp = data.get('startTimestamp')
         end_timestamp = data.get('endTimestamp')
         transcript_excerpt = data.get('transcriptExcerpt', '')
-        
+
         # Validate required fields
         if clip_index is None:
             return jsonify({'error': 'clipIndex is required'}), 400
@@ -1443,26 +1492,26 @@ def save_clip(job_id):
             return jsonify({'error': 'startTimestamp is required'}), 400
         if not end_timestamp:
             return jsonify({'error': 'endTimestamp is required'}), 400
-        
+
         # Load job data
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
         if not job_data:
             return jsonify({'error': 'Job not found'}), 404
-        
+
         # Check if clips exist
         if 'clips' not in job_data or not job_data['clips']:
             return jsonify({'error': 'No clips found for this job'}), 404
-        
+
         # Validate clip index
         clips = job_data['clips']
         if clip_index < 0 or clip_index >= len(clips):
             return jsonify({'error': f'Invalid clip index. Must be between 0 and {len(clips)-1}'}), 400
-        
+
         # Calculate duration in minutes
         start_seconds = parse_timestamp_to_seconds(start_timestamp)
         end_seconds = parse_timestamp_to_seconds(end_timestamp)
         duration_minutes = round((end_seconds - start_seconds) / 60, 1)
-        
+
         # Update the clip
         clips[clip_index]['start_timestamp'] = start_timestamp
         clips[clip_index]['end_timestamp'] = end_timestamp
@@ -1470,12 +1519,12 @@ def save_clip(job_id):
         if transcript_excerpt:
             clips[clip_index]['transcript_excerpt'] = transcript_excerpt
         clips[clip_index]['updatedAt'] = datetime.now().isoformat()
-        
+
         # Save updated job
         job_data['clips'] = clips
         job_data['updatedAt'] = datetime.now().isoformat()
         save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
-        
+
         return jsonify({
             'success': True,
             'clipIndex': clip_index,
@@ -1484,7 +1533,7 @@ def save_clip(job_id):
             'durationMinutes': duration_minutes,
             'message': 'Clip saved successfully'
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1495,15 +1544,15 @@ def export_clips(job_id):
         return '', 204
     try:
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
-        
+
         if not job_data:
             return jsonify({'error': 'Job not found'}), 404
-        
+
         if 'clips' not in job_data or not job_data['clips']:
             return jsonify({'error': 'No clips found for this job'}), 404
-        
+
         clips = job_data['clips']
-        
+
         # Build export data
         export_data = {
             'jobId': job_id,
@@ -1512,7 +1561,7 @@ def export_clips(job_id):
             'exportedAt': datetime.now().isoformat(),
             'clips': []
         }
-        
+
         for i, clip in enumerate(clips):
             export_clip = {
                 'index': i,
@@ -1525,9 +1574,9 @@ def export_clips(job_id):
                 'why_it_works': clip.get('why_it_works')
             }
             export_data['clips'].append(export_clip)
-        
+
         return jsonify(export_data), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
