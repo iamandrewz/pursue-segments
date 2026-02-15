@@ -684,11 +684,6 @@ def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
 # API ROUTES - PROFILE (EXISTING)
 # ============================================================================
 
-@app.route('/', methods=['GET'])
-def root():
-    """Root endpoint - simplest possible response"""
-    return jsonify({'status': 'ok'}), 200
-
 @app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
     """Health check endpoint - keep it simple to prevent Railway timeouts"""
