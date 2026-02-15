@@ -657,6 +657,16 @@
         .time-inputs label {
             color: #94a3b8;
         }
+        
+        .clip-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        }
         .time-inputs input {
             background: #334155;
             border: 1px solid #475569;
@@ -1116,7 +1126,10 @@
                             <div class="clip-time">⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_minutes} min)</div>
                             <div class="clip-quote">"${clip.engaging_quote || clip.transcript_excerpt?.substring(0, 150) + '...'}"</div>
                             <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
-                            <button class="btn btn-small" onclick="openEditor(${i}, '${clip.start_timestamp}', '${clip.end_timestamp}', '${title.replace(/'/g, "\\'")}', '${data.jobId}')">Edit Timestamps</button>
+                            <div class="clip-actions">
+                                <button class="btn btn-small" onclick="openEditor(${i}, '${clip.start_timestamp}', '${clip.end_timestamp}', '${title.replace(/'/g, "\\'")}', '${data.jobId}')">Edit Timestamps</button>
+                                <button class="btn btn-small btn-primary" onclick="downloadClip(${i}, '${data.jobId}')">⬇ Download Clip</button>
+                            </div>
                         </div>
                     `;
                     clipsContainer.innerHTML += html;
@@ -1194,6 +1207,43 @@
         function selectSegment(element) {
             document.querySelectorAll('.transcript-segment').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
+        }
+        
+        async function downloadClip(clipIndex, jobId) {
+            try {
+                showStatus(`⏳ Extracting clip ${clipIndex + 1}... This may take a minute.`, 'processing');
+                
+                const response = await fetch(`${API_URL}/api/job/${jobId}/clip/${clipIndex}/download`);
+                
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to download clip');
+                }
+                
+                // Get filename from Content-Disposition header or use default
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = `clip_${clipIndex + 1}.mp4`;
+                if (disposition) {
+                    const match = disposition.match(/filename="(.+)"/);
+                    if (match) filename = match[1];
+                }
+                
+                // Download the file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showStatus(`✅ Clip ${clipIndex + 1} downloaded!`, 'success');
+            } catch (err) {
+                console.error('Download error:', err);
+                showStatus(`❌ Download failed: ${err.message}`, 'error');
+            }
         }
         
         async function saveClipEdit() {
