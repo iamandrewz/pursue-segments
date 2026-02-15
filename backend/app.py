@@ -69,20 +69,7 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
-# Chunked upload configuration
-CHUNKED_UPLOAD_DIR = os.path.join(DATA_DIR, 'chunked_uploads')
-CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks
-os.makedirs(CHUNKED_UPLOAD_DIR, exist_ok=True)
-
-def get_upload_session(session_id):
-    """Load upload session data"""
-    session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_id}.json")
-    if os.path.exists(session_file):
-        with open(session_file, 'r') as f:
-            return json.load(f)
-    return None
-
-def save_upload_session(session_data):
+# Chunked upload routes added below after DATA_DIR definition
     """Save upload session data"""
     session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_data['id']}.json")
     with open(session_file, 'w') as f:
@@ -296,6 +283,25 @@ TRANSCRIPTS_DIR = os.path.join(DATA_DIR, 'transcripts')
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+
+# Chunked upload configuration
+CHUNKED_UPLOAD_DIR = os.path.join(DATA_DIR, 'chunked_uploads')
+CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks
+os.makedirs(CHUNKED_UPLOAD_DIR, exist_ok=True)
+
+def get_upload_session(session_id):
+    """Load upload session data"""
+    session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_id}.json")
+    if os.path.exists(session_file):
+        with open(session_file, 'r') as f:
+            return json.load(f)
+    return None
+
+def save_upload_session(session_data):
+    """Save upload session data"""
+    session_file = os.path.join(CHUNKED_UPLOAD_DIR, f"session_{session_data['id']}.json")
+    with open(session_file, 'w') as f:
+        json.dump(session_data, f, indent=2)
 
 # ============================================================================
 # UTILITY FUNCTIONS
