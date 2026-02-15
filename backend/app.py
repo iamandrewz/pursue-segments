@@ -281,7 +281,7 @@ CRITICAL JSON FORMATTING RULES:
 - All string values must be on a single line
 - Use proper JSON escaping for quotes: \"
 - Ensure valid JSON that can be parsed by json.loads()
-- No trailing commas before closing brackets
+- No trailing commas before closing brackets"""
 
 # ============================================================================
 # PROFILE GENERATION FUNCTIONS
