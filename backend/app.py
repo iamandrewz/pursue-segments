@@ -487,24 +487,25 @@ def transcribe_with_whisper(audio_path, video_id):
 
 def analyze_clips_with_gemini(transcript_text, target_audience_profile):
     """Analyze transcript and suggest clips using Gemini"""
-    if not GEMINI_API_KEY:
-        raise Exception("Gemini API key not configured")
-    
-    # Build the prompt
-    prompt = CLIP_ANALYSIS_PROMPT.format(
-        target_audience_profile=target_audience_profile,
-        transcript=transcript_text[:150000]  # Limit to avoid token limits
-    )
-    
-    # Call Gemini API
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.7,
-            max_output_tokens=2048,
+    try:
+        if not GEMINI_API_KEY:
+            raise Exception("Gemini API key not configured")
+        
+        # Build the prompt
+        prompt = CLIP_ANALYSIS_PROMPT.format(
+            target_audience_profile=target_audience_profile,
+            transcript=transcript_text[:150000]  # Limit to avoid token limits
         )
-    )
+        
+        # Call Gemini API
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=2048,
+            )
+        )
     
     # Parse JSON response
     try:
@@ -625,13 +626,24 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
             }]
         
         return validated_clips
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] JSON parse error: {e}")
-        print(f"[ERROR] Response was: {response.text[:1000]}")
-        raise Exception(f"Failed to parse Gemini response as JSON: {str(e)}")
     except Exception as e:
-        print(f"[ERROR] Gemini processing error: {e}")
-        raise Exception(f"Error processing Gemini response: {str(e)}")
+        import traceback
+        print(f"[FATAL ERROR] analyze_clips_with_gemini failed: {e}")
+        print(f"[FATAL ERROR] Traceback: {traceback.format_exc()}")
+        # Return fallback instead of crashing
+        return [{
+            'start_timestamp': '00:00',
+            'end_timestamp': '10:00',
+            'duration_minutes': 10,
+            'title_options': {
+                'punchy': f'Error: {str(e)[:40]}',
+                'benefit': 'Check Render Logs',
+                'curiosity': 'See Console Output'
+            },
+            'engaging_quote': f'Analysis failed with error: {str(e)}. Check the server logs for full traceback.',
+            'transcript_excerpt': 'Transcript was processed but clip analysis encountered an error.',
+            'why_it_works': 'This is a fallback response due to a processing error.'
+        }]
 
 def process_episode_async(job_id, youtube_url, video_id, podcast_name, profile_id=None):
     """Process episode in background thread"""
