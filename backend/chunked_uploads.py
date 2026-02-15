@@ -231,16 +231,26 @@ def complete_upload(upload_id=None):
         # Create final file path
         final_dir = os.path.join(os.path.dirname(__file__), 'data', 'uploads')
         os.makedirs(final_dir, exist_ok=True)
+        print(f"[CHUNKED] Final file path: {final_dir}")
         
         final_filename = f"{upload_id}_{session['filename']}"
         final_path = os.path.join(final_dir, final_filename)
         
-        # Combine chunks
-        with open(final_path, 'wb') as outfile:
-            for i in range(session['totalChunks']):
-                chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
-                with open(chunk_path, 'rb') as infile:
-                    outfile.write(infile.read())
+        # Combine chunks with error handling
+        print(f"[CHUNKED] Reassembling {session['totalChunks']} chunks...")
+        try:
+            with open(final_path, 'wb') as outfile:
+                for i in range(session['totalChunks']):
+                    chunk_path = os.path.join(upload_dir, f"chunk_{i:05d}")
+                    if not os.path.exists(chunk_path):
+                        return jsonify({'error': f'Chunk {i} not found at {chunk_path}'}), 500
+                    with open(chunk_path, 'rb') as infile:
+                        outfile.write(infile.read())
+                    if i % 10 == 0:
+                        print(f"[CHUNKED] Processed chunk {i}/{session['totalChunks']}")
+        except Exception as e:
+            print(f"[CHUNKED] Error reassembling: {e}")
+            return jsonify({'error': f'Failed to reassemble file: {str(e)}'}), 500
         
         # Verify file size
         actual_size = os.path.getsize(final_path)
