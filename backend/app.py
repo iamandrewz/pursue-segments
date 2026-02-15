@@ -1089,8 +1089,9 @@ def extract_audio_from_file(file_path, video_id, output_dir='/tmp'):
         '-acodec', 'libmp3lame',
         '-ar', '16000',  # 16kHz is good for speech recognition
         '-ac', '1',  # Mono (smaller file)
-        '-b:a', '32k',  # 32kbps bitrate (low but sufficient for speech)
-        '-y',  # Overwrite if exists
+        '-b:a', '24k',  # Lower bitrate for memory efficiency
+        '-threads', '1',  # Limit threads for Render
+        '-y',
         output_path
     ]
 
@@ -1786,17 +1787,21 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
             job_data['clipStatus'][str(clip_index)] = 'processing'
             save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
         
+        # Memory-efficient ffmpeg command for Render's 512MB limit
         cmd = [
             'ffmpeg', '-y',
-            '-ss', str(start_sec),
-            '-i', video_path,
-            '-t', str(duration),
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '23',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-movflags', '+faststart',
+            '-ss', str(start_sec),      # Seek before input (faster, less memory)
+            '-i', video_path,           # Input
+            '-t', str(duration),        # Duration
+            '-c:v', 'libx264',          # Video codec
+            '-preset', 'ultrafast',     # Fastest preset (less memory)
+            '-crf', '28',               # Lower quality = smaller files
+            '-maxrate', '2M',           # Limit bitrate
+            '-bufsize', '4M',           # Buffer size
+            '-c:a', 'aac',              # Audio codec
+            '-b:a', '96k',              # Lower audio bitrate
+            '-movflags', '+faststart',  # Web optimization
+            '-threads', '1',            # Limit threads to save memory
             output_path
         ]
         
