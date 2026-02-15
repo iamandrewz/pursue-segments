@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Sparkles,
   CheckCircle,
-  Wand2
+  Wand2,
+  Edit3
 } from 'lucide-react';
 import { getJobStatus } from '@/lib/api';
 import { JobStatusResponse, ClipSuggestion } from '@/lib/types';
@@ -27,9 +28,10 @@ interface ClipCardProps {
   index: number;
   selectedTitle: string;
   onSelectTitle: (title: string) => void;
+  jobId: string;
 }
 
-function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) {
+function ClipCard({ clip, index, selectedTitle, onSelectTitle, jobId }: ClipCardProps) {
   const [showTranscript, setShowTranscript] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -166,16 +168,28 @@ function ClipCard({ clip, index, selectedTitle, onSelectTitle }: ClipCardProps) 
         )}
       </div>
 
-      {/* Craft Segment Button */}
+      {/* Action Buttons */}
       <div className="mt-6 pt-4 border-t border-white/10">
-        <button
-          disabled
-          className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-royal-700/30 text-royal-400 font-medium rounded-xl cursor-not-allowed opacity-60"
-          title="Segment production coming soon"
-        >
-          <Wand2 className="w-5 h-5" />
-          <span>Craft Your Segment (Coming Soon)</span>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Edit Timestamps Button */}
+          <Link
+            href={`/editor/${jobId}`}
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-royal-600/30 hover:bg-royal-600/50 text-royal-300 font-medium rounded-xl transition-all border border-royal-500/30"
+          >
+            <Edit3 className="w-5 h-5" />
+            <span>Edit Timestamps</span>
+          </Link>
+          
+          {/* Craft Segment Button */}
+          <button
+            disabled
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-royal-700/30 text-royal-400 font-medium rounded-xl cursor-not-allowed opacity-60"
+            title="Segment production coming soon"
+          >
+            <Wand2 className="w-5 h-5" />
+            <span>Craft Segment</span>
+          </button>
+        </div>
         <p className="mt-2 text-xs text-center text-gray-500">
           Hardware-accelerated production available soon
         </p>
@@ -353,6 +367,7 @@ export default function ResultsPage() {
                 index={index}
                 selectedTitle={selectedTitles[index] || clip.title_options.punchy}
                 onSelectTitle={(title) => handleSelectTitle(index, title)}
+                jobId={jobId}
               />
             ))}
           </div>

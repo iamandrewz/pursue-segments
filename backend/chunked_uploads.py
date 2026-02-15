@@ -11,8 +11,11 @@ from flask import Blueprint, request, jsonify, send_from_directory
 # Create a blueprint for chunked uploads
 chunked_bp = Blueprint('chunked', __name__, url_prefix='/api/chunked')
 
-# Configuration
-CHUNKED_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'data', 'chunked_uploads')
+# Get the directory where this file is located
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Configuration - use app's data directory
+CHUNKED_UPLOAD_DIR = os.path.join(BACKEND_DIR, 'data', 'chunked_uploads')
 CHUNK_SIZE = 10 * 1024 * 1024  # 10MB chunks (adjust as needed)
 
 os.makedirs(CHUNKED_UPLOAD_DIR, exist_ok=True)

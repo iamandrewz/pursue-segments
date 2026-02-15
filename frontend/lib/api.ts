@@ -1,4 +1,7 @@
-const API_URL = 'https://extreme-locking-independently-disciplines.trycloudflare.com';
+// API URL - use environment variable or default to relative (for same-origin)
+const API_URL = typeof window !== 'undefined' 
+  ? (process.env.NEXT_PUBLIC_API_URL || '') 
+  : (process.env.NEXT_PUBLIC_API_URL || 'https://pursue-segments.onrender.com');
 
 // ============================================================================
 // QUESTIONNAIRE API
@@ -244,6 +247,105 @@ export interface ClipSuggestion {
   transcript_excerpt: string;
   why_it_works: string;
 }
-// force rebuild Sat Feb 14 16:07:41 PST 2026
-// cache bust Sat Feb 14 16:39:53 PST 2026
-// ssl test Sat Feb 14 16:44:50 PST 2026
+
+// ============================================================================
+// TRANSCRIPT EDITOR API
+// ============================================================================
+
+export interface FullTranscriptResponse {
+  jobId: string;
+  videoId: string;
+  podcastName: string;
+  duration: string;
+  segments: TranscriptSegmentWithTimestamp[];
+  clips: ClipSuggestion[];
+  fullText: string;
+}
+
+export interface TranscriptSegmentWithTimestamp {
+  id: number;
+  start: string;
+  end: string;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+  timestamp_text: string;
+}
+
+export async function getFullTranscript(jobId: string): Promise<FullTranscriptResponse> {
+  const response = await fetch(`${API_URL}/api/job/${jobId}/full-transcript`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch full transcript');
+  }
+
+  return response.json();
+}
+
+export interface SaveClipRequest {
+  jobId: string;
+  clipIndex: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  transcriptExcerpt?: string;
+}
+
+export interface SaveClipResponse {
+  success: boolean;
+  clipIndex: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  durationMinutes: number;
+  message: string;
+}
+
+export async function saveClip(data: SaveClipRequest): Promise<SaveClipResponse> {
+  const response = await fetch(`${API_URL}/api/job/${data.jobId}/save-clip`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      clipIndex: data.clipIndex,
+      startTimestamp: data.startTimestamp,
+      endTimestamp: data.endTimestamp,
+      transcriptExcerpt: data.transcriptExcerpt,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to save clip');
+  }
+
+  return response.json();
+}
+
+export interface ExportClipsResponse {
+  jobId: string;
+  videoId: string;
+  podcastName: string;
+  exportedAt: string;
+  clips: Array<{
+    index: number;
+    start_timestamp: string;
+    end_timestamp: string;
+    duration_minutes: number;
+    title_options: TitleOptions;
+    engaging_quote: string;
+    transcript_excerpt: string;
+    why_it_works: string;
+  }>;
+}
+
+export async function exportClips(jobId: string): Promise<ExportClipsResponse> {
+  const response = await fetch(`${API_URL}/api/job/${jobId}/export-clips`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to export clips');
+  }
+
+  return response.json();
+}

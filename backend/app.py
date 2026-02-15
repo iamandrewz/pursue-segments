@@ -10,8 +10,12 @@ import uuid
 import re
 import threading
 import time
+import hashlib
 from datetime import datetime
 from dotenv import load_dotenv
+
+# Import chunked upload blueprint
+from chunked_uploads import chunked_bp
 
 # Optional imports - don't crash if missing
 try:
@@ -33,7 +37,7 @@ load_dotenv()
 
 # Get the directory where this file is located
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, 'templates'))
+app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, 'templates'), static_folder=os.path.join(BACKEND_DIR, 'static'), static_url_path='/static')
 
 # Configure max content length for file uploads (5GB)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
@@ -67,6 +71,9 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
+
+# Register chunked upload blueprint
+app.register_blueprint(chunked_bp)
 
 # Configure APIs - lazy loading with error handling
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -1165,6 +1172,166 @@ def get_transcript(video_id):
         return jsonify({'error': str(e)}), 500
 
 # ============================================================================
+# API ROUTES - TRANSCRIPT EDITOR (NEW)
+# ============================================================================
+
+@app.route('/api/job/<job_id>/full-transcript', methods=['GET', 'OPTIONS'])
+def get_full_transcript(job_id):
+    """Get full transcript with timestamps for the transcript editor"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if transcript exists
+        if 'transcript' not in job_data:
+            return jsonify({'error': 'Transcript not yet available'}), 400
+        
+        transcript = job_data['transcript']
+        segments = transcript.get('segments', [])
+        
+        # Build formatted transcript with text including timestamps
+        formatted_segments = []
+        for seg in segments:
+            # Include timestamp in the text for display: [MM:SS] text
+            timestamp_text = f"[{seg['start']}] {seg['text']}"
+            formatted_segments.append({
+                'id': seg.get('start_seconds', 0),
+                'start': seg['start'],
+                'end': seg['end'],
+                'start_seconds': seg.get('start_seconds', 0),
+                'end_seconds': seg.get('end_seconds', 0),
+                'text': seg['text'],
+                'timestamp_text': timestamp_text
+            })
+        
+        # Get clips if available
+        clips = job_data.get('clips', [])
+        
+        return jsonify({
+            'jobId': job_id,
+            'videoId': job_data.get('videoId'),
+            'podcastName': job_data.get('podcastName'),
+            'duration': transcript.get('duration'),
+            'segments': formatted_segments,
+            'clips': clips,
+            'fullText': transcript.get('fullText', '')
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/job/<job_id>/save-clip', methods=['POST', 'OPTIONS'])
+def save_clip(job_id):
+    """Save adjusted clip timestamps"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        data = request.json
+        clip_index = data.get('clipIndex')
+        start_timestamp = data.get('startTimestamp')
+        end_timestamp = data.get('endTimestamp')
+        transcript_excerpt = data.get('transcriptExcerpt', '')
+        
+        # Validate required fields
+        if clip_index is None:
+            return jsonify({'error': 'clipIndex is required'}), 400
+        if not start_timestamp:
+            return jsonify({'error': 'startTimestamp is required'}), 400
+        if not end_timestamp:
+            return jsonify({'error': 'endTimestamp is required'}), 400
+        
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if clips exist
+        if 'clips' not in job_data or not job_data['clips']:
+            return jsonify({'error': 'No clips found for this job'}), 404
+        
+        # Validate clip index
+        clips = job_data['clips']
+        if clip_index < 0 or clip_index >= len(clips):
+            return jsonify({'error': f'Invalid clip index. Must be between 0 and {len(clips)-1}'}), 400
+        
+        # Calculate duration in minutes
+        start_seconds = parse_timestamp_to_seconds(start_timestamp)
+        end_seconds = parse_timestamp_to_seconds(end_timestamp)
+        duration_minutes = round((end_seconds - start_seconds) / 60, 1)
+        
+        # Update the clip
+        clips[clip_index]['start_timestamp'] = start_timestamp
+        clips[clip_index]['end_timestamp'] = end_timestamp
+        clips[clip_index]['duration_minutes'] = duration_minutes
+        if transcript_excerpt:
+            clips[clip_index]['transcript_excerpt'] = transcript_excerpt
+        clips[clip_index]['updatedAt'] = datetime.now().isoformat()
+        
+        # Save updated job
+        job_data['clips'] = clips
+        job_data['updatedAt'] = datetime.now().isoformat()
+        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+        
+        return jsonify({
+            'success': True,
+            'clipIndex': clip_index,
+            'startTimestamp': start_timestamp,
+            'endTimestamp': end_timestamp,
+            'durationMinutes': duration_minutes,
+            'message': 'Clip saved successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/job/<job_id>/export-clips', methods=['GET', 'OPTIONS'])
+def export_clips(job_id):
+    """Export clip data for download"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        if 'clips' not in job_data or not job_data['clips']:
+            return jsonify({'error': 'No clips found for this job'}), 404
+        
+        clips = job_data['clips']
+        
+        # Build export data
+        export_data = {
+            'jobId': job_id,
+            'videoId': job_data.get('videoId'),
+            'podcastName': job_data.get('podcastName'),
+            'exportedAt': datetime.now().isoformat(),
+            'clips': []
+        }
+        
+        for i, clip in enumerate(clips):
+            export_clip = {
+                'index': i,
+                'start_timestamp': clip.get('start_timestamp'),
+                'end_timestamp': clip.get('end_timestamp'),
+                'duration_minutes': clip.get('duration_minutes'),
+                'title_options': clip.get('title_options', {}),
+                'engaging_quote': clip.get('engaging_quote'),
+                'transcript_excerpt': clip.get('transcript_excerpt'),
+                'why_it_works': clip.get('why_it_works')
+            }
+            export_data['clips'].append(export_clip)
+        
+        return jsonify(export_data), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================================
 # FRONTEND SERVING (Simple HTML Upload Form)
 # ============================================================================
 
@@ -1184,6 +1351,18 @@ def serve_frontend():
             with open(index_path, 'r') as f:
                 return f.read()
         return jsonify({'status': 'error', 'message': str(e), 'path': index_path}), 500
+
+@app.route('/static/<path:path>', methods=['GET'])
+def serve_static(path):
+    """Serve static files (Next.js build output)"""
+    return send_from_directory(app.static_folder, path)
+
+@app.route('/_next/<path:path>', methods=['GET'])
+def serve_nextjs(path):
+    """Serve Next.js build files"""
+    if app.static_folder:
+        return send_from_directory(app.static_folder, f'_next/{path}')
+    return jsonify({'error': 'Static files not available'}), 404
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):

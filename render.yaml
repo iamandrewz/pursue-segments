@@ -6,9 +6,9 @@ services:
     buildCommand: |
       cd frontend && npm install && npm run build
       mkdir -p ../backend/static
-      cp -r .next/* ../backend/static/
-      cd ../backend && pip install -r requirements.txt
-    startCommand: cd backend && python app.py
+      cp -r .next/standalone/* ../backend/
+      cp -r .next/static ../backend/.next/
+    startCommand: cd backend && node server.js
     envVars:
       - key: GEMINI_API_KEY
         sync: false
@@ -16,3 +16,7 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: "*"
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://pursue-segments.onrender.com"

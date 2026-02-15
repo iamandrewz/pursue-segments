@@ -87,7 +87,7 @@
         
         input[type="file"] { display: none; }
         
-        .btn-primary {
+        .btn {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
             border: none;
@@ -101,15 +101,42 @@
             margin-top: 30px;
         }
         
-        .btn-primary:hover {
+        .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.5);
         }
         
-        .btn-primary:disabled {
+        .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
+        }
+        
+        .btn-secondary {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-small {
+            padding: 10px 20px;
+            font-size: 14px;
+            margin-top: 10px;
+            width: auto;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .btn-group .btn {
+            flex: 1;
+            margin-top: 0;
         }
         
         .file-info {
@@ -118,6 +145,10 @@
             background: rgba(15, 23, 42, 0.8);
             border-radius: 12px;
             display: none;
+        }
+        
+        .file-info.visible {
+            display: block;
         }
         
         .file-name {
@@ -131,9 +162,32 @@
             font-size: 14px;
         }
         
+        .file-mode {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .file-mode-chunked {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+        
+        .file-mode-regular {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+        
         .progress-container {
             margin-top: 30px;
             display: none;
+        }
+        
+        .progress-container.visible {
+            display: block;
         }
         
         .progress-header {
@@ -159,12 +213,74 @@
             width: 0%;
         }
         
+        /* Chunked upload specific styles */
+        .chunk-progress {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
+            border: 1px solid rgba(168, 85, 247, 0.2);
+        }
+        
+        .chunk-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+        
+        .chunk-bar {
+            height: 4px;
+            background: rgba(168, 85, 247, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        
+        .chunk-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #a855f7 0%, #c084fc 100%);
+            transition: width 0.2s ease;
+        }
+        
+        .chunk-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        
+        .chunk-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+        
+        .chunk-status-dot.paused {
+            background: #f59e0b;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
         .status-message {
             margin-top: 20px;
             padding: 16px 20px;
             border-radius: 12px;
             font-size: 14px;
             display: none;
+        }
+        
+        .status-message.visible {
+            display: block;
         }
         
         .status-success {
@@ -185,9 +301,19 @@
             color: #818cf8;
         }
         
+        .status-uploading {
+            background: rgba(168, 85, 247, 0.2);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            color: #c084fc;
+        }
+        
         .clips-section {
             margin-top: 40px;
             display: none;
+        }
+        
+        .clips-section.visible {
+            display: block;
         }
         
         .clips-header {
@@ -302,6 +428,24 @@
             font-size: 13px;
             color: #64748b;
         }
+        
+        .resume-notice {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #fbbf24;
+            display: none;
+        }
+        
+        .resume-notice.visible {
+            display: flex;
+        }
     </style>
 </head>
 <body>
@@ -321,9 +465,17 @@
             
             <div class="file-info" id="fileInfo">
                 <div class="file-name" id="fileName"></div>
-                <div class="file-size" id="fileSize"></div>
+                <div class="file-size" id="fileSize">
+                    <span id="sizeValue"></span>
+                    <span class="file-mode" id="uploadMode"></span>
+                </div>
+                <div class="resume-notice" id="resumeNotice">
+                    <span>💾</span>
+                    <span>Previous upload found. Click "Resume" to continue.</span>
+                </div>
             </div>
             
+            <!-- Regular Progress -->
             <div class="progress-container" id="progressContainer">
                 <div class="progress-header">
                     <span id="progressText">Uploading...</span>
@@ -334,9 +486,39 @@
                 </div>
             </div>
             
+            <!-- Chunked Progress -->
+            <div class="progress-container" id="chunkProgressContainer">
+                <div class="progress-header">
+                    <span id="chunkProgressText">Chunked Upload...</span>
+                    <span id="chunkProgressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="chunkProgressFill"></div>
+                </div>
+                
+                <div class="chunk-progress">
+                    <div class="chunk-info">
+                        <span id="chunkCurrent">Chunk 0/0</span>
+                        <span id="chunkSpeed">0 MB/s</span>
+                    </div>
+                    <div class="chunk-bar">
+                        <div class="chunk-fill" id="chunkFill" style="width: 0%"></div>
+                    </div>
+                    <div class="chunk-status">
+                        <div class="chunk-status-dot" id="chunkStatusDot"></div>
+                        <span id="chunkStatusText">Preparing chunks...</span>
+                    </div>
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-secondary btn-small" id="pauseBtn">Pause</button>
+                    <button class="btn btn-secondary btn-small" id="cancelBtn">Cancel</button>
+                </div>
+            </div>
+            
             <div class="status-message" id="statusMessage"></div>
             
-            <button class="btn-primary" id="uploadBtn" disabled>Analyze Episode</button>
+            <button class="btn" id="uploadBtn" disabled>Analyze Episode</button>
             
             <div class="features">
                 <div class="feature">
@@ -363,21 +545,54 @@
         </div>
     </div>
 
+    <!-- Load Chunked Uploader Module -->
+    <script src="chunked-uploader.js"></script>
+    
     <script>
         const API_URL = window.location.origin;
+        const CHUNKED_THRESHOLD = 100 * 1024 * 1000; // 100MB - files above this use chunked upload
+        
+        // DOM Elements
         const uploadArea = document.getElementById('uploadArea');
         const videoFile = document.getElementById('videoFile');
         const uploadBtn = document.getElementById('uploadBtn');
         const fileInfo = document.getElementById('fileInfo');
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
+        const sizeValue = document.getElementById('sizeValue');
+        const uploadMode = document.getElementById('uploadMode');
+        const resumeNotice = document.getElementById('resumeNotice');
+        
         const progressContainer = document.getElementById('progressContainer');
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         const progressPercent = document.getElementById('progressPercent');
+        
+        const chunkProgressContainer = document.getElementById('chunkProgressContainer');
+        const chunkProgressFill = document.getElementById('chunkProgressFill');
+        const chunkProgressText = document.getElementById('chunkProgressText');
+        const chunkProgressPercent = document.getElementById('chunkProgressPercent');
+        const chunkCurrent = document.getElementById('chunkCurrent');
+        const chunkSpeed = document.getElementById('chunkSpeed');
+        const chunkFill = document.getElementById('chunkFill');
+        const chunkStatusDot = document.getElementById('chunkStatusDot');
+        const chunkStatusText = document.getElementById('chunkStatusText');
+        
+        const pauseBtn = document.getElementById('pauseBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        
         const statusMessage = document.getElementById('statusMessage');
         const clipsSection = document.getElementById('clipsSection');
         const clipsContainer = document.getElementById('clipsContainer');
+        
+        // State
+        let selectedFile = null;
+        let useChunkedUpload = false;
+        let uploader = null;
+        let chunkStartTime = null;
+        let lastChunkBytes = 0;
+        
+        // ========== Utility Functions ==========
         
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
@@ -390,8 +605,30 @@
         function showStatus(message, type) {
             statusMessage.textContent = message;
             statusMessage.className = 'status-message status-' + type;
-            statusMessage.style.display = 'block';
+            statusMessage.classList.add('visible');
         }
+        
+        function hideStatus() {
+            statusMessage.classList.remove('visible');
+        }
+        
+        function updateUIForChunkedMode(isChunked) {
+            useChunkedUpload = isChunked;
+            
+            if (isChunked) {
+                uploadMode.textContent = 'CHUNKED';
+                uploadMode.className = 'file-mode file-mode-chunked';
+                progressContainer.classList.remove('visible');
+                chunkProgressContainer.classList.add('visible');
+            } else {
+                uploadMode.textContent = 'DIRECT';
+                uploadMode.className = 'file-mode file-mode-regular';
+                progressContainer.classList.add('visible');
+                chunkProgressContainer.classList.remove('visible');
+            }
+        }
+        
+        // ========== File Selection ==========
         
         uploadArea.addEventListener('click', () => videoFile.click());
         
@@ -424,51 +661,234 @@
         });
         
         function handleFileSelect(file) {
+            selectedFile = file;
+            
             fileName.textContent = file.name;
-            fileSize.textContent = formatFileSize(file.size);
-            fileInfo.style.display = 'block';
+            sizeValue.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('visible');
+            
+            // Check if should use chunked upload
+            const isChunked = shouldUseChunkedUpload(file, CHUNKED_THRESHOLD);
+            updateUIForChunkedMode(isChunked);
+            
+            // Check for resume
+            checkForResume(file);
+            
             uploadBtn.disabled = false;
             uploadBtn.textContent = 'Analyze Episode';
+            hideStatus();
         }
         
+        function checkForResume(file) {
+            const saved = localStorage.getItem('chunkedUpload');
+            if (!saved) {
+                resumeNotice.classList.remove('visible');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(saved);
+                if (data.filename === file.name && data.fileSize === file.size) {
+                    resumeNotice.classList.add('visible');
+                } else {
+                    resumeNotice.classList.remove('visible');
+                }
+            } catch (err) {
+                resumeNotice.classList.remove('visible');
+            }
+        }
+        
+        // ========== Upload Handlers ==========
+        
         uploadBtn.addEventListener('click', async () => {
-            const file = videoFile.files[0];
-            if (!file) return;
+            if (!selectedFile) return;
             
             uploadBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            clipsSection.style.display = 'none';
-            statusMessage.style.display = 'none';
+            clipsSection.classList.remove('visible');
+            hideStatus();
             
+            if (useChunkedUpload) {
+                await startChunkedUpload();
+            } else {
+                await startRegularUpload();
+            }
+        });
+        
+        // ========== Regular Upload ==========
+        
+        async function startRegularUpload() {
             const formData = new FormData();
-            formData.append('video', file);
+            formData.append('video', selectedFile);
+            
+            progressContainer.classList.add('visible');
+            chunkProgressContainer.classList.remove('visible');
             
             try {
                 progressText.textContent = 'Uploading...';
-                const response = await fetch(`${API_URL}/api/process-episode`, {
-                    method: 'POST',
-                    body: formData
+                
+                // Use XMLHttpRequest for progress tracking
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = pct + '%';
+                        progressPercent.textContent = pct + '%';
+                        progressText.textContent = `Uploading... ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`;
+                    }
                 });
                 
-                const data = await response.json();
+                const response = await new Promise((resolve, reject) => {
+                    xhr.onload = () => resolve(xhr);
+                    xhr.onerror = () => reject(new Error('Network error'));
+                    xhr.open('POST', `${API_URL}/api/process-episode`);
+                    xhr.send(formData);
+                });
                 
-                if (response.ok) {
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
                     progressFill.style.width = '100%';
                     progressPercent.textContent = '100%';
                     showStatus('Upload complete! Analyzing your episode...', 'processing');
                     pollJobStatus(data.jobId);
                 } else {
+                    const data = JSON.parse(xhr.responseText);
                     showStatus('❌ ' + (data.error || 'Upload failed'), 'error');
                     uploadBtn.disabled = false;
                 }
             } catch (err) {
                 showStatus('❌ Upload failed: ' + err.message, 'error');
                 uploadBtn.disabled = false;
-                progressContainer.style.display = 'none';
+                progressContainer.classList.remove('visible');
+            }
+        }
+        
+        // ========== Chunked Upload ==========
+        
+        async function startChunkedUpload() {
+            // Create uploader instance
+            uploader = new ChunkedUploader({
+                chunkSize: 10 * 1024 * 1024, // 10MB
+                maxFileSize: 5 * 1024 * 1024 * 1024, // 5GB
+                autoResume: false,
+                retryAttempts: 3,
+                
+                onProgress: handleChunkProgress,
+                onChunkComplete: handleChunkComplete,
+                onComplete: handleChunkedComplete,
+                onError: handleChunkError
+            });
+            
+            try {
+                // Initiate upload
+                showStatus('Initiating chunked upload...', 'uploading');
+                await uploader.initiate(selectedFile);
+                
+                // Start uploading chunks
+                await uploader.start();
+                
+            } catch (err) {
+                showStatus('❌ Chunked upload failed: ' + err.message, 'error');
+                uploadBtn.disabled = false;
+                chunkProgressContainer.classList.remove('visible');
+            }
+        }
+        
+        function handleChunkProgress(data) {
+            const pct = Math.round(data.progress);
+            chunkProgressFill.style.width = pct + '%';
+            chunkProgressPercent.textContent = pct + '%';
+            chunkProgressText.textContent = `Uploading ${selectedFile.name}`;
+            chunkCurrent.textContent = `Chunk ${data.uploadedChunks}/${data.totalChunks}`;
+            
+            // Calculate speed
+            const now = Date.now();
+            if (chunkStartTime) {
+                const elapsed = (now - chunkStartTime) / 1000;
+                if (elapsed > 0) {
+                    const speed = (lastChunkBytes / elapsed) / (1024 * 1024);
+                    chunkSpeed.textContent = speed.toFixed(1) + ' MB/s';
+                }
+            }
+            chunkStartTime = now;
+            lastChunkBytes = data.bytesUploaded;
+            
+            // Update chunk bar (current chunk progress - estimated)
+            const chunkPct = ((data.chunkIndex + 1) / data.totalChunks) * 100;
+            chunkFill.style.width = Math.min(chunkPct, 100) + '%';
+            
+            chunkStatusText.textContent = `Uploading chunk ${data.chunkIndex + 1} of ${data.totalChunks}`;
+            chunkStatusDot.classList.remove('paused');
+        }
+        
+        function handleChunkComplete(data) {
+            console.log('Chunk complete:', data.chunkIndex);
+        }
+        
+        async function handleChunkedComplete(data) {
+            showStatus('✅ Upload complete! Reassembling file...', 'uploading');
+            
+            try {
+                // Trigger processing pipeline
+                const processResult = await uploader.processEpisode(data.filePath);
+                
+                if (processResult.jobId) {
+                    showStatus('File reassembled! Starting analysis...', 'processing');
+                    pollJobStatus(processResult.jobId);
+                } else {
+                    // Direct result
+                    displayClips(processResult);
+                    showStatus('✅ Analysis complete!', 'success');
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Analyze Another Episode';
+                }
+            } catch (err) {
+                showStatus('❌ Processing failed: ' + err.message, 'error');
+                uploadBtn.disabled = false;
+                chunkProgressContainer.classList.remove('visible');
+            }
+        }
+        
+        function handleChunkError(data) {
+            showStatus('❌ Chunk upload failed: ' + data.error, 'error');
+            uploadBtn.disabled = false;
+        }
+        
+        // ========== Pause/Resume/Cancel ==========
+        
+        pauseBtn.addEventListener('click', () => {
+            if (uploader) {
+                if (uploader.isPaused) {
+                    uploader.resume();
+                    pauseBtn.textContent = 'Pause';
+                    chunkStatusDot.classList.remove('paused');
+                    chunkStatusText.textContent = 'Resuming...';
+                } else {
+                    uploader.pause();
+                    pauseBtn.textContent = 'Resume';
+                    chunkStatusDot.classList.add('paused');
+                    chunkStatusText.textContent = 'Paused';
+                }
             }
         });
         
+        cancelBtn.addEventListener('click', async () => {
+            if (uploader) {
+                await uploader.abort();
+                showStatus('Upload cancelled', 'error');
+                uploadBtn.disabled = false;
+                chunkProgressContainer.classList.remove('visible');
+                resumeNotice.classList.remove('visible');
+            }
+        });
+        
+        // ========== Job Polling ==========
+        
         async function pollJobStatus(jobId) {
+            // Hide chunked progress, show regular
+            chunkProgressContainer.classList.remove('visible');
+            progressContainer.classList.add('visible');
+            
             const pollInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`${API_URL}/api/job/${jobId}`);
@@ -506,6 +926,8 @@
             }, 3000);
         }
         
+        // ========== Display Results ==========
+        
         function displayClips(data) {
             clipsContainer.innerHTML = '';
             
@@ -529,9 +951,65 @@
                 });
             }
             
-            clipsSection.style.display = 'block';
+            clipsSection.classList.add('visible');
             clipsSection.scrollIntoView({ behavior: 'smooth' });
         }
+        
+        // Resume functionality
+        async function tryResumeUpload() {
+            const saved = localStorage.getItem('chunkedUpload');
+            if (!saved) return false;
+            
+            try {
+                const data = JSON.parse(saved);
+                
+                // Check if upload still exists on server
+                const response = await fetch(`/api/chunked/status/${data.uploadId}`);
+                if (!response.ok) return false;
+                
+                const status = await response.json();
+                
+                if (status.status === 'in_progress') {
+                    // Resume
+                    selectedFile = new File([], data.filename, { type: 'video/mp4' });
+                    selectedFile.size = data.fileSize;
+                    
+                    fileName.textContent = data.filename;
+                    sizeValue.textContent = formatFileSize(data.fileSize);
+                    fileInfo.classList.add('visible');
+                    updateUIForChunkedMode(true);
+                    
+                    // Auto-start resume
+                    uploadBtn.disabled = true;
+                    showStatus('Resuming previous upload...', 'uploading');
+                    
+                    uploader = new ChunkedUploader({
+                        onProgress: handleChunkProgress,
+                        onChunkComplete: handleChunkComplete,
+                        onComplete: handleChunkedComplete,
+                        onError: handleChunkError
+                    });
+                    
+                    uploader.uploadId = data.uploadId;
+                    uploader.file = selectedFile;
+                    uploader.chunkSize = data.chunkSize;
+                    uploader.totalChunks = Math.ceil(data.fileSize / data.chunkSize);
+                    uploader.uploadedChunks = new Set(status.uploadedChunks || []);
+                    
+                    await uploader.start();
+                    return true;
+                }
+            } catch (err) {
+                console.error('Resume check failed:', err);
+            }
+            
+            return false;
+        }
+        
+        // Check for resume on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Could auto-check here if desired
+        });
     </script>
 </body>
 </html>

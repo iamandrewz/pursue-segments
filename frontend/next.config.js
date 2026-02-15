@@ -4,6 +4,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Output standalone for containerized deployment
+  output: 'standalone',
+  trailingSlash: true,
 };
 
 module.exports = nextConfig;

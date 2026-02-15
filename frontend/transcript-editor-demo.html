@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Editor - Pursue Segments</title>
+  <style>
+    :root {
+      --bg-dark: #020617;
+      --bg-medium: #0f172a;
+      --bg-light: #1e293b;
+      --royal-500: #6366f1;
+      --royal-600: #4f46e5;
+      --royal-700: #4338ca;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: rgba(255,255,255,0.1);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 30px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--royal-600), var(--royal-700));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    
+    .logo-text {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    
+    .btn-secondary {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    
+    .btn-primary {
+      background: var(--royal-600);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--royal-500);
+    }
+    
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* Clip Selector */
+    .clip-selector {
+      margin-bottom: 30px;
+    }
+    
+    .clip-selector label {
+      display: block;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    
+    .clip-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .clip-tab {
+      padding: 12px 20px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    .clip-tab:hover {
+      background: rgba(255,255,255,0.1);
+      color: var(--text-primary);
+    }
+    
+    .clip-tab.active {
+      background: var(--royal-600);
+      color: white;
+      border-color: var(--royal-600);
+    }
+    
+    /* Timeline */
+    .timeline-container {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 30px;
+    }
+    
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .timeline-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .snap-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    
+    .snap-toggle input {
+      accent-color: var(--royal-500);
+    }
+    
+    .timeline-bar {
+      position: relative;
+      height: 64px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    
+    .timeline-segments {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+    }
+    
+    .timeline-segment {
+      background: rgba(255,255,255,0.03);
+      border-right: 1px solid var(--border);
+    }
+    
+    .timeline-highlight {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(99, 102, 241, 0.25);
+      border-left: 2px solid var(--royal-400);
+      border-right: 2px solid var(--royal-400);
+    }
+    
+    .timeline-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 16px;
+      background: var(--royal-500);
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      z-index: 10;
+    }
+    
+    .timeline-handle:hover {
+      background: var(--royal-400);
+    }
+    
+    .timeline-handle::after {
+      content: '';
+      width: 4px;
+      height: 32px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 2px;
+    }
+    
+    .timeline-times {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 16px;
+      font-family: monospace;
+    }
+    
+    .timeline-times .time {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .timeline-times .time-value {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    
+    .timeline-times .duration {
+      color: var(--text-secondary);
+    }
+    
+    .timeline-times .duration span {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    
+    .stat-card h3 {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    
+    /* Clip Preview */
+    .preview-section {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 30px;
+    }
+    
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .preview-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .save-message {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    
+    .save-message.success {
+      color: #4ade80;
+    }
+    
+    .save-message.error {
+      color: #f87171;
+    }
+    
+    .preview-text {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 16px;
+      max-height: 200px;
+      overflow-y: auto;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    
+    /* Full Transcript */
+    .transcript-section {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .transcript-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    
+    .transcript-list {
+      max-height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .transcript-segment {
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .transcript-segment:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    
+    .transcript-segment.active {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+    
+    .transcript-segment .timestamp {
+      color: var(--royal-400);
+      font-family: monospace;
+      font-size: 13px;
+      margin-right: 8px;
+    }
+    
+    .transcript-segment .text {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    /* Icons */
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+    
+    /* Loading */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      color: var(--text-secondary);
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--royal-500);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">PS</div>
+        <span class="logo-text">Pursue Segments</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="exportClips()">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Export All
+        </button>
+        <button class="btn btn-primary" id="saveBtn" onclick="saveClip()">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+          </svg>
+          Save Clip
+        </button>
+      </div>
+    </header>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Loading transcript editor...</p>
+    </div>
+
+    <div id="editor" style="display: none;">
+      <!-- Clip Selector -->
+      <div class="clip-selector">
+        <label>Select Clip to Edit</label>
+        <div class="clip-tabs" id="clipTabs"></div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-container">
+        <div class="timeline-header">
+          <h2 class="timeline-title">Timeline Editor</h2>
+          <label class="snap-toggle">
+            <input type="checkbox" id="snapToggle" checked>
+            Snap to sentence boundaries
+          </label>
+        </div>
+        
+        <div class="timeline-bar" id="timelineBar">
+          <div class="timeline-segments" id="timelineSegments"></div>
+          <div class="timeline-highlight" id="timelineHighlight"></div>
+          <div class="timeline-handle" id="handleStart"></div>
+          <div class="timeline-handle" id="handleEnd"></div>
+        </div>
+        
+        <div class="timeline-times">
+          <div class="time">
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="time-value" id="startTime">00:00</span>
+          </div>
+          <div class="duration">
+            Duration: <span id="durationValue">0:00</span>
+          </div>
+          <div class="time">
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="time-value" id="endTime">00:00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+            </svg>
+            Word Count
+          </h3>
+          <div class="stat-value" id="wordCount">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+            </svg>
+            Characters
+          </h3>
+          <div class="stat-value" id="charCount">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Duration
+          </h3>
+          <div class="stat-value" id="durationDisplay">0:00</div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-section">
+        <div class="preview-header">
+          <h2 class="preview-title">Clip Preview</h2>
+          <div class="save-message" id="saveMessage"></div>
+        </div>
+        <div class="preview-text" id="previewText"></div>
+      </div>
+
+      <!-- Full Transcript -->
+      <div class="transcript-section">
+        <h2 class="transcript-title">Full Transcript</h2>
+        <div class="transcript-list" id="transcriptList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Demo data for testing (simulates API response)
+    const DEMO_DATA = {
+      jobId: 'demo-job-123',
+      videoId: 'demo-video',
+      podcastName: 'Demo Podcast',
+      duration: '45:30',
+      segments: [
+        { id: 0, start: '0:00', end: '0:15', start_seconds: 0, end_seconds: 15, text: 'Welcome to the podcast. Today we are going to discuss something amazing that changed everything.' },
+        { id: 1, start: '0:15', end: '0:30', start_seconds: 15, end_seconds: 30, text: 'It all started three years ago when I first discovered the power of consistent action. Small steps every day compound into massive results over time.' },
+        { id: 2, start: '0:30', end: '0:45', start_seconds: 30, end_seconds: 45, text: 'Let me share a specific example. When I started, I could barely do ten pushups. Now I can do one hundred without stopping. The key was showing up every single day.' },
+        { id: 3, start: '0:45', end: '1:00', start_seconds: 45, end_seconds: 60, text: 'But here is what most people get wrong. They think they need motivation to start. That is backwards! You need to start to get motivation.' },
+        { id: 4, start: '1:00', end: '1:15', start_seconds: 60, end_seconds: 75, text: 'Action creates momentum. Momentum creates enthusiasm. Enthusiasm sustains the action. This is the flywheel effect that most successful people understand.' },
+        { id: 5, start: '1:15', end: '1:30', start_seconds: 75, end_seconds: 90, text: 'Now let me tell you about the three pillars of sustainable growth. First, consistency. Second, learning. Third, community support. These three things will transform any endeavor.' },
+        { id: 6, start: '1:30', end: '1:45', start_seconds: 90, end_seconds: 105, text: 'Consistency beats intensity every single time. You do not need to work harder. You need to work smarter and stay committed to the process.' },
+        { id: 7, start: '1:45', end: '2:00', start_seconds: 105, end_seconds: 120, text: 'Learning is the second pillar. Read every day. Listen to podcasts. Take courses. The more you learn, the more you earn in terms of opportunities.' },
+        { id: 8, start: '2:00', end: '2:15', start_seconds: 120, end_seconds: 135, text: 'Finally, community is everything. You become the average of the five people you spend the most time with. Choose your circle wisely.' },
+        { id: 9, start: '2:15', end: '2:30', start_seconds: 135, end_seconds: 150, text: 'That is why we built this program. To give you a community of like-minded individuals who are all committed to growth. It has been incredible to see the results.' }
+      ],
+      clips: [
+        { start_timestamp: '0:15', end_timestamp: '1:00', duration_minutes: 0.75, title_options: { punchy: 'The Secret to Transformation' }, engaging_quote: 'Small steps every day compound into massive results over time.', transcript_excerpt: 'It all started three years ago when I first discovered the power of consistent action.' },
+        { start_timestamp: '1:00', end_timestamp: '2:00', duration_minutes: 1.0, title_options: { punchy: 'The Flywheel Effect' }, engaging_quote: 'Action creates momentum. Momentum creates enthusiasm.', transcript_excerpt: 'Action creates momentum. Momentum creates enthusiasm. Enthusiasm sustains the action.' },
+        { start_timestamp: '2:00', end_timestamp: '2:30', duration_minutes: 0.5, title_options: { punchy: 'Choose Your Circle' }, engaging_quote: 'You become the average of the five people you spend the most time with.', transcript_excerpt: 'You become the average of the five people you spend the most time with. Choose your circle wisely.' }
+      ]
+    };
+
+    // State
+    let data = null;
+    let activeClipIndex = 0;
+    let clipStart = 0;
+    let clipEnd = 0;
+    let isDragging = null;
+    let isSaving = false;
+
+    // DOM Elements
+    const loadingEl = document.getElementById('loading');
+    const editorEl = document.getElementById('editor');
+    const timelineBar = document.getElementById('timelineBar');
+    const handleStart = document.getElementById('handleStart');
+    const handleEnd = document.getElementById('handleEnd');
+    const timelineHighlight = document.getElementById('timelineHighlight');
+    const startTimeEl = document.getElementById('startTime');
+    const endTimeEl = document.getElementById('endTime');
+    const durationValueEl = document.getElementById('durationValue');
+    const wordCountEl = document.getElementById('wordCount');
+    const charCountEl = document.getElementById('charCount');
+    const durationDisplayEl = document.getElementById('durationDisplay');
+    const previewTextEl = document.getElementById('previewText');
+    const transcriptListEl = document.getElementById('transcriptList');
+    const clipTabsEl = document.getElementById('clipTabs');
+    const snapToggle = document.getElementById('snapToggle');
+    const saveMessageEl = document.getElementById('saveMessage');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // Initialize
+    function init() {
+      // Simulate API call - in real app, fetch from /api/job/{jobId}/full-transcript
+      setTimeout(() => {
+        data = DEMO_DATA;
+        clipStart = parseTimestamp(data.clips[0].start_timestamp);
+        clipEnd = parseTimestamp(data.clips[0].end_timestamp);
+        
+        renderClipTabs();
+        renderTimeline();
+        renderTranscript();
+        updateStats();
+        
+        loadingEl.style.display = 'none';
+        editorEl.style.display = 'block';
+      }, 500);
+    }
+
+    function parseTimestamp(ts) {
+      const parts = ts.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parts[0] || 0;
+    }
+
+    function formatTimestamp(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      if (hours > 0) return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function renderClipTabs() {
+      clipTabsEl.innerHTML = data.clips.map((clip, i) => `
+        <button class="clip-tab ${i === activeClipIndex ? 'active' : ''}" onclick="selectClip(${i})">
+          Clip ${i + 1} (${clip.start_timestamp} - ${clip.end_timestamp})
+        </button>
+      `).join('');
+    }
+
+    function renderTimeline() {
+      const totalDuration = data.segments[data.segments.length - 1].end_seconds;
+      const width = timelineBar.offsetWidth;
+      
+      // Render segment markers
+      const segmentsEl = document.getElementById('timelineSegments');
+      segmentsEl.innerHTML = data.segments.map(seg => {
+        const left = (seg.start_seconds / totalDuration) * 100;
+        const w = ((seg.end_seconds - seg.start_seconds) / totalDuration) * 100;
+        return `<div class="timeline-segment" style="left:${left}%;width:${w}%"></div>`;
+      }).join('');
+      
+      updateTimelinePositions();
+    }
+
+    function updateTimelinePositions() {
+      const totalDuration = data.segments[data.segments.length - 1].end_seconds;
+      const width = timelineBar.offsetWidth;
+      
+      const startPct = (clipStart / totalDuration) * 100;
+      const endPct = (clipEnd / totalDuration) * 100;
+      
+      timelineHighlight.style.left = `${startPct}%`;
+      timelineHighlight.style.width = `${endPct - startPct}%`;
+      
+      handleStart.style.left = `${startPct}%`;
+      handleEnd.style.left = `${endPct}%`;
+      
+      startTimeEl.textContent = formatTimestamp(clipStart);
+      endTimeEl.textContent = formatTimestamp(clipEnd);
+      
+      const duration = clipEnd - clipStart;
+      durationValueEl.textContent = formatTimestamp(duration);
+      durationDisplayEl.textContent = formatTimestamp(duration);
+    }
+
+    function renderTranscript() {
+      transcriptListEl.innerHTML = data.segments.map((seg, i) => `
+        <div class="transcript-segment ${seg.start_seconds >= clipStart && seg.end_seconds <= clipEnd ? 'active' : ''}" onclick="selectSegment(${i})">
+          <span class="timestamp">[${seg.start}]</span>
+          <span class="text">${seg.text}</span>
+        </div>
+      `).join('');
+    }
+
+    function updateStats() {
+      const clipSegments = data.segments.filter(
+        seg => seg.start_seconds >= clipStart && seg.end_seconds <= clipEnd
+      );
+      const text = clipSegments.map(s => s.text).join(' ');
+      
+      const words = text.split(/\s+/).filter(w => w.length > 0);
+      wordCountEl.textContent = words.length;
+      charCountEl.textContent = text.length;
+      
+      previewTextEl.textContent = text || 'No text in selected range';
+    }
+
+    function selectClip(index) {
+      activeClipIndex = index;
+      const clip = data.clips[index];
+      clipStart = parseTimestamp(clip.start_timestamp);
+      clipEnd = parseTimestamp(clip.end_timestamp);
+      
+      renderClipTabs();
+      renderTimeline();
+      renderTranscript();
+      updateStats();
+    }
+
+    function selectSegment(index) {
+      const seg = data.segments[index];
+      clipStart = seg.start_seconds;
+      clipEnd = seg.end_seconds;
+      
+      renderTimeline();
+      renderTranscript();
+      updateStats();
+    }
+
+    // Drag handling
+    handleStart.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isDragging = 'start';
+    });
+
+    handleEnd.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isDragging = 'end';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const rect = timelineBar.getBoundingClientRect();
+      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      const pct = x / rect.width;
+      
+      const totalDuration = data.segments[data.segments.length - 1].end_seconds;
+      let newTime = pct * totalDuration;
+      
+      // Snap to sentence boundaries
+      if (snapToggle.checked) {
+        const boundaries = [];
+        data.segments.forEach(seg => {
+          const words = seg.text.split(/[.!?]\s+/);
+          const duration = (seg.end_seconds - seg.start_seconds) / words.length;
+          let time = seg.start_seconds;
+          words.forEach((w, i) => {
+            if (i > 0) boundaries.push(time);
+            time += duration;
+          });
+        });
+        
+        if (boundaries.length > 0) {
+          const closest = boundaries.reduce((prev, curr) => 
+            Math.abs(curr - newTime) < Math.abs(prev - newTime) ? curr : prev
+          );
+          if (Math.abs(closest - newTime) < 5) newTime = closest;
+        }
+      }
+      
+      if (isDragging === 'start') {
+        clipStart = Math.min(newTime, clipEnd - 5);
+      } else {
+        clipEnd = Math.max(newTime, clipStart + 5);
+      }
+      
+      updateTimelinePositions();
+      renderTranscript();
+      updateStats();
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = null;
+    });
+
+    // Save and Export
+    function saveClip() {
+      if (isSaving) return;
+      
+      isSaving = true;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0"></span> Saving...';
+      
+      // Simulate API call
+      setTimeout(() => {
+        // Update demo data
+        data.clips[activeClipIndex].start_timestamp = formatTimestamp(clipStart);
+        data.clips[activeClipIndex].end_timestamp = formatTimestamp(clipEnd);
+        data.clips[activeClipIndex].duration_minutes = (clipEnd - clipStart) / 60;
+        
+        saveMessageEl.className = 'save-message success';
+        saveMessageEl.innerHTML = `
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Clip saved successfully!
+        `;
+        
+        setTimeout(() => {
+          saveMessageEl.textContent = '';
+        }, 3000);
+        
+        isSaving = false;
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Save Clip
+        `;
+        
+        renderClipTabs();
+      }, 500);
+    }
+
+    function exportClips() {
+      const exportData = {
+        jobId: data.jobId,
+        podcastName: data.podcastName,
+        exportedAt: new Date().toISOString(),
+        clips: data.clips
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clips-${data.jobId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
