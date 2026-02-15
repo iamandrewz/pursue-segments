@@ -1116,7 +1116,7 @@
                             <div class="clip-time">⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_minutes} min)</div>
                             <div class="clip-quote">"${clip.engaging_quote || clip.transcript_excerpt?.substring(0, 150) + '...'}"</div>
                             <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
-                            <button class="btn btn-small" onclick="openEditor(${i}, '${clip.start_timestamp}', '${clip.end_timestamp}', '${title.replace(/'/g, "\\'")}')">Edit Timestamps</button>
+                            <button class="btn btn-small" onclick="openEditor(${i}, '${clip.start_timestamp}', '${clip.end_timestamp}', '${title.replace(/'/g, "\\'")}', '${data.jobId}')">Edit Timestamps</button>
                         </div>
                     `;
                     clipsContainer.innerHTML += html;
@@ -1133,8 +1133,9 @@
         let currentJobId = null;
         let currentTranscript = null;
         
-        function openEditor(clipIndex, startTime, endTime, title) {
+        function openEditor(clipIndex, startTime, endTime, title, jobId) {
             currentClipIndex = clipIndex;
+            currentJobId = jobId;
             document.getElementById('editorClipTitle').textContent = title;
             document.getElementById('editorClipTime').textContent = `${startTime} - ${endTime}`;
             document.getElementById('editStartTime').value = startTime;
@@ -1154,25 +1155,40 @@
             const transcriptDiv = document.getElementById('editorTranscript');
             transcriptDiv.innerHTML = '<p style="color: #94a3b8;">Loading transcript...</p>';
             
-            // For now, show a placeholder transcript
-            // In production, this would fetch from /api/job/{jobId}/full-transcript
+            try {
+                // Fetch actual transcript from backend
+                const response = await fetch(`${API_URL}/api/job/${currentJobId}/full-transcript`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.segments && data.segments.length > 0) {
+                        currentTranscript = data;
+                        renderTranscript(data.segments);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load transcript:', err);
+            }
+            
+            // Fallback: show placeholder
             transcriptDiv.innerHTML = `
                 <div class="transcript-segment selected" onclick="selectSegment(this)">
-                    <strong>[00:00]</strong> This is where your transcript would appear...
-                </div>
-                <div class="transcript-segment" onclick="selectSegment(this)">
-                    <strong>[00:05]</strong> Click on any segment to adjust clip boundaries
-                </div>
-                <div class="transcript-segment" onclick="selectSegment(this)">
-                    <strong>[00:10]</strong> The selected segment will be highlighted
-                </div>
-                <div class="transcript-segment" onclick="selectSegment(this)">
-                    <strong>[00:15]</strong> Use the time inputs above to fine-tune
-                </div>
-                <div class="transcript-segment" onclick="selectSegment(this)">
-                    <strong>[00:20]</strong> Then click Save Changes when done
+                    <strong>[00:00]</strong> Transcript loading failed. Use time inputs above to manually adjust.
                 </div>
             `;
+        }
+        
+        function renderTranscript(segments) {
+            const transcriptDiv = document.getElementById('editorTranscript');
+            transcriptDiv.innerHTML = '';
+            
+            segments.forEach((segment, i) => {
+                const div = document.createElement('div');
+                div.className = 'transcript-segment';
+                div.onclick = () => selectSegment(div, segment.start, segment.end);
+                div.innerHTML = `<strong>[${segment.start}]</strong> ${segment.text}`;
+                transcriptDiv.appendChild(div);
+            });
         }
         
         function selectSegment(element) {
@@ -1184,11 +1200,30 @@
             const startTime = document.getElementById('editStartTime').value;
             const endTime = document.getElementById('editEndTime').value;
             
-            showStatus(`Clip ${currentClipIndex + 1} updated: ${startTime} - ${endTime}`, 'success');
-            closeEditor();
-            
-            // In production, this would POST to /api/job/{jobId}/save-clip
-            console.log('Saving clip edit:', { index: currentClipIndex, startTime, endTime });
+            try {
+                const response = await fetch(`${API_URL}/api/job/${currentJobId}/save-clip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clipIndex: currentClipIndex,
+                        start_timestamp: startTime,
+                        end_timestamp: endTime
+                    })
+                });
+                
+                if (response.ok) {
+                    showStatus(`✅ Clip ${currentClipIndex + 1} updated: ${startTime} - ${endTime}`, 'success');
+                    closeEditor();
+                    // Refresh clips display
+                    pollJobStatus(currentJobId);
+                } else {
+                    const data = await response.json();
+                    showStatus('❌ Failed to save: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                console.error('Save error:', err);
+                showStatus('❌ Save failed: ' + err.message, 'error');
+            }
         }
         
         // Close modal when clicking outside
