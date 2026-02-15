@@ -202,7 +202,7 @@ class ChunkedUploader {
         // If processing, poll until complete
         if (data.status === 'processing') {
             console.log('[ChunkedUpload] Reassembly in progress, polling...');
-            this.onStatus({ message: 'Reassembling file...', progress: 100 });
+            this.onProgress({ percent: 100, message: 'Reassembling file...' });
             
             while (data.status === 'processing') {
                 await this._delay(2000); // Poll every 2 seconds
