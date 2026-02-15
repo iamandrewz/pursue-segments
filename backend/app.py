@@ -1111,26 +1111,58 @@ def get_transcript(video_id):
 # FRONTEND SERVING (Single Page Application)
 # ============================================================================
 
+def find_frontend_index():
+    """Find the frontend index.html file"""
+    possible_paths = [
+        # Render structure (frontend at repo root)
+        os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'server', 'app', 'index.html'),
+        # Alternative: frontend built to static folder
+        os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
+        # Alternative: frontend at same level as backend
+        os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', '.next', 'server', 'app', 'index.html'),
+    ]
+    
+    for path in possible_paths:
+        print(f"[DEBUG] Checking: {path} - Exists: {os.path.exists(path)}")
+        if os.path.exists(path):
+            return path
+    
+    return None
+
 # Serve static files from frontend .next folder
 @app.route('/_next/static/<path:filename>')
 def serve_next_static(filename):
     """Serve Next.js static files"""
-    frontend_static = os.path.join(os.path.dirname(__file__), '../frontend/.next/static')
+    frontend_static = os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'static')
     if os.path.exists(os.path.join(frontend_static, filename)):
         return send_from_directory(frontend_static, filename)
-    return jsonify({'error': 'Not found'}), 404
+    return jsonify({'error': 'Static file not found'}), 404
 
 @app.route('/', methods=['GET'])
 def serve_frontend():
     """Serve the frontend index.html"""
-    # Look for index.html in frontend build
-    index_path = os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html')
+    index_path = find_frontend_index()
     
-    if os.path.exists(index_path):
+    if index_path:
+        print(f"[DEBUG] Serving frontend from: {index_path}")
         with open(index_path, 'r') as f:
             return f.read()
     
-    return jsonify({'status': 'backend running', 'message': 'Frontend not built at ' + index_path}), 200
+    # List what we can see for debugging
+    backend_dir = os.path.dirname(__file__)
+    parent_dir = os.path.join(backend_dir, '..')
+    
+    debug_info = {
+        'status': 'backend running',
+        'message': 'Frontend not found',
+        'backend_dir': backend_dir,
+        'parent_dir_contents': os.listdir(parent_dir) if os.path.exists(parent_dir) else 'N/A',
+        'looking_for': [
+            os.path.join(backend_dir, '..', 'frontend', '.next', 'server', 'app', 'index.html'),
+            os.path.join(backend_dir, 'static', 'index.html'),
+        ]
+    }
+    return jsonify(debug_info), 200
 
 @app.route('/<path:path>', methods=['GET'])
 def serve_frontend_routes(path):
@@ -1140,9 +1172,9 @@ def serve_frontend_routes(path):
         return jsonify({'error': 'Not found'}), 404
     
     # Serve index.html for all other routes (SPA routing)
-    index_path = os.path.join(os.path.dirname(__file__), '../frontend/.next/server/app/index.html')
+    index_path = find_frontend_index()
     
-    if os.path.exists(index_path):
+    if index_path:
         with open(index_path, 'r') as f:
             return f.read()
     
