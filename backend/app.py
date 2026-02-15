@@ -33,6 +33,9 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Configure max content length for file uploads (5GB)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
+
 # Parse CORS origins from env var (comma-separated) or use defaults
 cors_origins_env = os.getenv('CORS_ORIGINS')
 if cors_origins_env:
@@ -41,7 +44,8 @@ else:
     # Default origins for development and production
     cors_origins = [
         'http://localhost:3000',
-        'https://segments.pursuepodcasting.com'
+        'https://segments.pursuepodcasting.com',
+        'https://pursue-segments-v5.vercel.app'
     ]
 
 # Apply CORS to all /api/* routes - allow all origins for now
