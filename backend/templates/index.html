@@ -518,7 +518,7 @@
             
             <div class="status-message" id="statusMessage"></div>
             
-            <button class="btn" id="uploadBtn" disabled>Analyze Episode</button>
+            <button class="btn" id="uploadBtn" disabled style="opacity: 0.5;">Analyze Episode</button>
             
             <div class="features">
                 <div class="feature">
@@ -654,33 +654,58 @@
             }
         });
         
-        videoFile.addEventListener('change', () => {
-            if (videoFile.files.length > 0) {
+        videoFile.addEventListener('change', (e) => {
+            console.log('Change event fired');
+            if (videoFile.files && videoFile.files.length > 0) {
+                console.log('File found:', videoFile.files[0].name);
                 handleFileSelect(videoFile.files[0]);
+            } else {
+                console.log('No file selected');
             }
         });
         
         function handleFileSelect(file) {
-            console.log('File selected:', file.name, file.size);
+            console.log('handleFileSelect called with:', file ? file.name : 'null');
+            
+            if (!file) {
+                console.error('No file provided');
+                return;
+            }
+            
             selectedFile = file;
             
-            fileName.textContent = file.name;
-            sizeValue.textContent = formatFileSize(file.size);
-            fileInfo.style.display = 'block';
+            // Update file info display
+            if (fileName) fileName.textContent = file.name;
+            if (sizeValue) sizeValue.textContent = formatFileSize(file.size);
+            
+            // Show file info - try both class and style
+            if (fileInfo) {
+                fileInfo.classList.add('visible');
+                fileInfo.style.display = 'block';
+            }
             
             // Check if should use chunked upload
-            const isChunked = shouldUseChunkedUpload(file, CHUNKED_THRESHOLD);
-            updateUIForChunkedMode(isChunked);
+            try {
+                const isChunked = shouldUseChunkedUpload(file, CHUNKED_THRESHOLD);
+                updateUIForChunkedMode(isChunked);
+                checkForResume(file);
+            } catch (err) {
+                console.error('Error in chunked upload check:', err);
+            }
             
-            // Check for resume
-            checkForResume(file);
+            // ENABLE BUTTON - this is the key part
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Analyze Episode';
+                uploadBtn.style.opacity = '1';
+                uploadBtn.style.pointerEvents = 'auto';
+                console.log('Button enabled - disabled:', uploadBtn.disabled);
+            } else {
+                console.error('uploadBtn not found!');
+            }
             
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = 'Analyze Episode';
-            uploadBtn.style.opacity = '1';
             hideStatus();
-            
-            console.log('Button enabled');
+            console.log('handleFileSelect complete');
         }
         
         function checkForResume(file) {
