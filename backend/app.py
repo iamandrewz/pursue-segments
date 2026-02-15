@@ -491,10 +491,11 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         if not GEMINI_API_KEY:
             raise Exception("Gemini API key not configured")
         
-        # Build the prompt
+        # Build the prompt - escape curly braces in transcript to prevent format errors
+        safe_transcript = transcript_text[:150000].replace('{', '{{').replace('}', '}}')
         prompt = CLIP_ANALYSIS_PROMPT.format(
             target_audience_profile=target_audience_profile,
-            transcript=transcript_text[:150000]  # Limit to avoid token limits
+            transcript=safe_transcript
         )
         
         # Call Gemini API
