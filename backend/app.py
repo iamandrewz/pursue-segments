@@ -1377,6 +1377,7 @@ def process_episode():
             'videoId': video_id,
             'podcastName': podcast_name,
             'profileId': profile_id,
+            'filePath': file_path,
             'userId': user_id,
             'status': 'queued',
             'progressMessage': 'Queued for processing...',
@@ -1435,6 +1436,7 @@ def process_file_upload():
             'videoId': video_id,
             'podcastName': podcast_name,
             'profileId': profile_id,
+            'filePath': file_path,
             'status': 'queued',
             'progressMessage': 'Queued for processing...',
             'createdAt': datetime.now().isoformat(),
@@ -1473,12 +1475,14 @@ def process_server_file(file_path, data):
         job_id = str(uuid.uuid4())
         video_id = f"chunked_{job_id[:8]}"
         
-        # Create job record
+        # Create job record with file path for later clip extraction
         job_data = {
             'id': job_id,
             'videoId': video_id,
             'podcastName': podcast_name,
             'profileId': profile_id,
+            'filePath': file_path,
+            'filePath': file_path,
             'status': 'queued',
             'progressMessage': 'Queued for processing...',
             'createdAt': datetime.now().isoformat(),
