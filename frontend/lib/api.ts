@@ -139,7 +139,7 @@ export async function processEpisodeWithFile(data: ProcessEpisodeFileRequest): P
 
 export interface JobStatusResponse {
   jobId: string;
-  status: 'queued' | 'uploading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
+  status: 'queued' | 'downloading' | 'transcribing' | 'analyzing' | 'complete' | 'failed';
   progressMessage: string;
   podcastName: string;
   createdAt: string;
