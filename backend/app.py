@@ -1778,6 +1778,13 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
     import subprocess
     try:
         print(f"[CLIP] Starting async extraction: job={job_id}, clip={clip_index}")
+        print(f"[CLIP] Video: {video_path}, Output: {output_path}")
+        print(f"[CLIP] Time: {start_sec}s to {start_sec + duration}s (duration: {duration}s)")
+        
+        # Verify video file exists
+        if not os.path.exists(video_path):
+            print(f"[CLIP] ERROR: Video file not found: {video_path}")
+            return
         
         # Update job status to show processing
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
@@ -1813,11 +1820,17 @@ def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, d
             if 'clipStatus' not in job_data:
                 job_data['clipStatus'] = {}
             if result.returncode == 0 and os.path.exists(output_path):
-                job_data['clipStatus'][str(clip_index)] = 'ready'
-                print(f"[CLIP] Extraction complete: {output_path}")
+                file_size = os.path.getsize(output_path)
+                if file_size > 1000:
+                    job_data['clipStatus'][str(clip_index)] = 'ready'
+                    print(f"[CLIP] Extraction complete: {output_path} ({file_size} bytes)")
+                else:
+                    job_data['clipStatus'][str(clip_index)] = f'error: File too small ({file_size} bytes)'
+                    print(f"[CLIP] Extraction failed: File too small ({file_size} bytes)")
             else:
-                job_data['clipStatus'][str(clip_index)] = f'error: {result.stderr[:200]}'
-                print(f"[CLIP] Extraction failed: {result.stderr[:200]}")
+                error_msg = result.stderr[:200] if result.stderr else 'Unknown ffmpeg error'
+                job_data['clipStatus'][str(clip_index)] = f'error: {error_msg}'
+                print(f"[CLIP] Extraction failed: {error_msg}")
             save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
             
     except Exception as e:
@@ -1882,8 +1895,9 @@ def download_clip_video(job_id, clip_index):
         output_filename = f"{job_id}_{clip_index}_{safe_title}.mp4"
         output_path = os.path.join(clips_dir, output_filename)
 
-        # Check if already extracted and ready
-        if os.path.exists(output_path):
+        # Check if already extracted and ready (must have content)
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+            print(f"[CLIP] Serving existing clip: {output_path} ({os.path.getsize(output_path)} bytes)")
             return send_file(output_path, as_attachment=True, download_name=output_filename)
 
         # Check if currently processing
@@ -1894,6 +1908,16 @@ def download_clip_video(job_id, clip_index):
         # Check for errors
         if clip_status and clip_status.startswith('error'):
             return jsonify({'error': 'Clip extraction failed', 'details': clip_status}), 500
+
+        # Check if file exists but is empty (failed extraction)
+        if os.path.exists(output_path):
+            file_size = os.path.getsize(output_path)
+            if file_size < 1000:
+                print(f"[CLIP] File exists but too small ({file_size} bytes), re-extracting...")
+                os.remove(output_path)
+            else:
+                # File is good, serve it
+                return send_file(output_path, as_attachment=True, download_name=output_filename)
 
         # Start async extraction
         start_sec = parse_timestamp_to_seconds(start_ts)
