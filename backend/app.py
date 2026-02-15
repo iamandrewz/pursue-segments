@@ -1134,15 +1134,22 @@ def find_frontend_index():
 @app.route('/_next/static/<path:filename>')
 def serve_next_static(filename):
     """Serve Next.js static files"""
-    # Try Render path first (static/.next/static)
-    frontend_static = os.path.join(os.path.dirname(__file__), 'static', '.next', 'static')
-    if os.path.exists(os.path.join(frontend_static, filename)):
-        return send_from_directory(frontend_static, filename)
-    # Try local dev path
-    frontend_static = os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'static')
-    if os.path.exists(os.path.join(frontend_static, filename)):
-        return send_from_directory(frontend_static, filename)
-    return jsonify({'error': 'Static file not found'}), 404
+    # Try multiple possible locations
+    possible_roots = [
+        # Render: copied to backend/static/.next/static
+        os.path.join(os.path.dirname(__file__), 'static', '.next', 'static'),
+        # Local dev: frontend/.next/static
+        os.path.join(os.path.dirname(__file__), '..', 'frontend', '.next', 'static'),
+    ]
+    
+    for root in possible_roots:
+        full_path = os.path.join(root, filename)
+        if os.path.exists(full_path) and os.path.isfile(full_path):
+            directory = os.path.dirname(full_path)
+            basename = os.path.basename(full_path)
+            return send_from_directory(directory, basename)
+    
+    return jsonify({'error': f'Static file not found: {filename}'}), 404
 
 @app.route('/', methods=['GET'])
 def serve_frontend():
