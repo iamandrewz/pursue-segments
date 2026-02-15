@@ -1,160 +1,450 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Pursue Segments - Upload Video</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pursue Segments - Podcast Clip Intelligence</title>
     <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            max-width: 800px; 
-            margin: 50px auto; 
-            padding: 20px; 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-            color: white;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0a0f1a 0%, #1a1f35 50%, #0f172a 100%);
             min-height: 100vh;
+            color: #e2e8f0;
+            line-height: 1.6;
         }
-        h1 { color: #60a5fa; margin-bottom: 10px; }
-        .subtitle { color: #94a3b8; margin-bottom: 30px; }
-        .upload-box {
-            background: rgba(30, 41, 59, 0.8);
-            border: 2px dashed #3b82f6;
-            border-radius: 16px;
-            padding: 40px;
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        
+        header {
             text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .logo {
+            font-size: 42px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+        
+        .tagline {
+            color: #94a3b8;
+            font-size: 18px;
+            font-weight: 300;
+        }
+        
+        .upload-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 24px;
+            padding: 50px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .upload-area {
+            border: 2px dashed rgba(99, 102, 241, 0.4);
+            border-radius: 16px;
+            padding: 60px 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.5);
+        }
+        
+        .upload-area:hover {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .upload-icon {
+            font-size: 64px;
             margin-bottom: 20px;
+            opacity: 0.8;
         }
-        .upload-box:hover { border-color: #60a5fa; }
-        input[type="file"] { 
-            display: none;
+        
+        .upload-text {
+            font-size: 20px;
+            color: #e2e8f0;
+            margin-bottom: 10px;
         }
-        .file-label {
-            display: inline-block;
-            padding: 12px 24px;
-            background: #3b82f6;
+        
+        .upload-subtext {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        input[type="file"] { display: none; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        .file-label:hover { background: #2563eb; }
-        .file-name { margin-top: 15px; color: #94a3b8; }
-        button { 
-            width: 100%; 
-            padding: 16px; 
-            font-size: 16px; 
-            border-radius: 8px; 
             border: none;
-            background: #3b82f6;
-            color: white;
-            cursor: pointer;
+            padding: 16px 40px;
+            font-size: 16px;
             font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 30px;
         }
-        button:hover { background: #2563eb; }
-        button:disabled { background: #475569; cursor: not-allowed; }
-        #status { 
-            margin-top: 20px; 
-            padding: 20px; 
-            border-radius: 12px; 
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .file-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 12px;
             display: none;
         }
-        .success { background: #065f46; border: 1px solid #10b981; }
-        .error { background: #7f1d1d; border: 1px solid #ef4444; }
-        .processing { background: #1e3a8a; border: 1px solid #3b82f6; }
-        #progress { margin-top: 20px; display: none; }
+        
+        .file-name {
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 5px;
+        }
+        
+        .file-size {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        .progress-container {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        
         .progress-bar {
-            background: #334155;
-            border-radius: 8px;
             height: 8px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 4px;
             overflow: hidden;
         }
+        
         .progress-fill {
-            background: #3b82f6;
             height: 100%;
+            background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
             width: 0%;
-            transition: width 0.3s;
         }
-        #results { margin-top: 30px; }
-        .clip-card {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid #334155;
+        
+        .status-message {
+            margin-top: 20px;
+            padding: 16px 20px;
             border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
         }
-        .clip-title { color: #60a5fa; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-        .clip-time { color: #94a3b8; font-size: 14px; margin-bottom: 10px; }
-        .clip-quote { font-style: italic; color: #e2e8f0; margin: 10px 0; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; }
-        .clip-why { color: #cbd5e1; font-size: 14px; }
-        .loading {
+        
+        .status-success {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #4ade80;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+        
+        .status-processing {
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #818cf8;
+        }
+        
+        .clips-section {
+            margin-top: 40px;
+            display: none;
+        }
+        
+        .clips-header {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 25px;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .clip-card {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .clip-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .clip-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-right: 12px;
+        }
+        
+        .clip-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+        }
+        
+        .clip-time {
+            color: #818cf8;
+            font-size: 14px;
+            margin-bottom: 12px;
+            font-family: monospace;
+        }
+        
+        .clip-quote {
+            font-style: italic;
+            color: #cbd5e1;
+            padding: 15px;
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 3px solid #6366f1;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        
+        .clip-why {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .loading-spinner {
             display: inline-block;
             width: 20px;
             height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
+            border: 3px solid rgba(255,255,255,0.3);
             border-radius: 50%;
             border-top-color: white;
             animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 40px;
+        }
+        
+        .feature {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .feature-title {
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 5px;
+        }
+        
+        .feature-desc {
+            font-size: 13px;
+            color: #64748b;
+        }
     </style>
 </head>
 <body>
-    <h1>📹 Pursue Segments</h1>
-    <p class="subtitle">Upload your podcast episode for AI-powered clip analysis</p>
-    
-    <form id="uploadForm">
-        <div class="upload-box">
-            <label for="videoFile" class="file-label">📁 Choose Video File</label>
-            <input type="file" id="videoFile" accept="video/*" required>
-            <p class="file-name" id="fileName">No file selected</p>
-            <p style="color: #64748b; font-size: 14px;">MP4, MOV, AVI, MKV up to 5GB</p>
+    <div class="container">
+        <header>
+            <h1 class="logo">Pursue Segments</h1>
+            <p class="tagline">AI-Powered Podcast Clip Intelligence</p>
+        </header>
+        
+        <div class="upload-card">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Drop your podcast episode here</div>
+                <div class="upload-subtext">or click to browse • MP4, MOV, MKV up to 5GB</div>
+                <input type="file" id="videoFile" accept="video/*">
+            </div>
+            
+            <div class="file-info" id="fileInfo">
+                <div class="file-name" id="fileName"></div>
+                <div class="file-size" id="fileSize"></div>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <span id="progressText">Uploading...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+            
+            <div class="status-message" id="statusMessage"></div>
+            
+            <button class="btn-primary" id="uploadBtn" disabled>Analyze Episode</button>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <div class="feature-title">Smart Clips</div>
+                    <div class="feature-desc">AI finds viral moments</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">Fast Processing</div>
+                    <div class="feature-desc">Results in minutes</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">✨</div>
+                    <div class="feature-title">Ready to Share</div>
+                    <div class="feature-desc">Titles & timestamps</div>
+                </div>
+            </div>
         </div>
         
-        <button type="submit" id="submitBtn">🚀 Upload & Analyze</button>
-    </form>
-    
-    <div id="status"></div>
-    
-    <div id="progress">
-        <p id="progressText">Processing...</p>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+        <div class="clips-section" id="clipsSection">
+            <h2 class="clips-header">🎯 Suggested Clips</h2>
+            <div id="clipsContainer"></div>
         </div>
     </div>
-    
-    <div id="results"></div>
 
     <script>
         const API_URL = window.location.origin;
-        let jobId = null;
-        let pollInterval = null;
+        const uploadArea = document.getElementById('uploadArea');
+        const videoFile = document.getElementById('videoFile');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const statusMessage = document.getElementById('statusMessage');
+        const clipsSection = document.getElementById('clipsSection');
+        const clipsContainer = document.getElementById('clipsContainer');
         
-        // File selection
-        document.getElementById('videoFile').onchange = function() {
-            const file = this.files[0];
-            document.getElementById('fileName').textContent = file ? file.name : 'No file selected';
-        };
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
         
-        // Upload form
-        document.getElementById('uploadForm').onsubmit = async (e) => {
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message status-' + type;
+            statusMessage.style.display = 'block';
+        }
+        
+        uploadArea.addEventListener('click', () => videoFile.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
-            const file = document.getElementById('videoFile').files[0];
-            const status = document.getElementById('status');
-            const progress = document.getElementById('progress');
-            const submitBtn = document.getElementById('submitBtn');
-            
-            if (!file) {
-                showStatus('Please select a file', 'error');
-                return;
+            uploadArea.style.borderColor = '#6366f1';
+            uploadArea.style.background = 'rgba(99, 102, 241, 0.1)';
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '';
+            uploadArea.style.background = '';
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '';
+            uploadArea.style.background = '';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                videoFile.files = files;
+                handleFileSelect(files[0]);
             }
+        });
+        
+        videoFile.addEventListener('change', () => {
+            if (videoFile.files.length > 0) {
+                handleFileSelect(videoFile.files[0]);
+            }
+        });
+        
+        function handleFileSelect(file) {
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.style.display = 'block';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Analyze Episode';
+        }
+        
+        uploadBtn.addEventListener('click', async () => {
+            const file = videoFile.files[0];
+            if (!file) return;
             
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Uploading...';
-            showStatus('Uploading video...', 'processing');
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            clipsSection.style.display = 'none';
+            statusMessage.style.display = 'none';
             
             const formData = new FormData();
             formData.append('video', file);
             
             try {
+                progressText.textContent = 'Uploading...';
                 const response = await fetch(`${API_URL}/api/process-episode`, {
                     method: 'POST',
                     body: formData
@@ -163,99 +453,84 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    jobId = data.jobId;
-                    showStatus(`✅ Upload successful! Job ID: ${jobId}<br>Analyzing your video...`, 'success');
-                    progress.style.display = 'block';
-                    startPolling(jobId);
+                    progressFill.style.width = '100%';
+                    progressPercent.textContent = '100%';
+                    showStatus('Upload complete! Analyzing your episode...', 'processing');
+                    pollJobStatus(data.jobId);
                 } else {
-                    showStatus('❌ Error: ' + (data.error || 'Upload failed'), 'error');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '🚀 Upload & Analyze';
+                    showStatus('❌ ' + (data.error || 'Upload failed'), 'error');
+                    uploadBtn.disabled = false;
                 }
             } catch (err) {
                 showStatus('❌ Upload failed: ' + err.message, 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = '🚀 Upload & Analyze';
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
             }
-        };
+        });
         
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.innerHTML = message;
-            status.className = type;
-            status.style.display = 'block';
-        }
-        
-        function startPolling(id) {
-            if (pollInterval) clearInterval(pollInterval);
-            
-            pollInterval = setInterval(async () => {
+        async function pollJobStatus(jobId) {
+            const pollInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`${API_URL}/api/job/${id}`);
+                    const response = await fetch(`${API_URL}/api/job/${jobId}`);
                     const data = await response.json();
                     
-                    updateProgress(data);
+                    // Update progress based on status
+                    const progressMap = {
+                        'queued': 25,
+                        'downloading': 40,
+                        'transcribing': 60,
+                        'analyzing': 85,
+                        'complete': 100,
+                        'failed': 0
+                    };
+                    const pct = progressMap[data.status] || 50;
+                    progressFill.style.width = pct + '%';
+                    progressPercent.textContent = pct + '%';
+                    progressText.textContent = data.progressMessage || `Status: ${data.status}`;
                     
                     if (data.status === 'complete') {
                         clearInterval(pollInterval);
-                        showResults(data);
-                        document.getElementById('progress').style.display = 'none';
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').textContent = '🚀 Upload & Analyze';
+                        showStatus('✅ Analysis complete!', 'success');
+                        displayClips(data);
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = 'Analyze Another Episode';
                     } else if (data.status === 'failed') {
                         clearInterval(pollInterval);
-                        showStatus('❌ Analysis failed: ' + (data.error || 'Unknown error'), 'error');
-                        document.getElementById('progress').style.display = 'none';
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').textContent = '🚀 Upload & Analyze';
+                        showStatus('❌ ' + (data.error || 'Analysis failed'), 'error');
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = 'Try Again';
                     }
                 } catch (err) {
                     console.error('Polling error:', err);
                 }
-            }, 3000); // Poll every 3 seconds
+            }, 3000);
         }
         
-        function updateProgress(data) {
-            const progressText = document.getElementById('progressText');
-            const progressFill = document.getElementById('progressFill');
-            
-            progressText.textContent = data.progressMessage || `Status: ${data.status}`;
-            
-            // Simple progress based on status
-            const progressMap = {
-                'queued': 10,
-                'downloading': 30,
-                'transcribing': 50,
-                'analyzing': 80,
-                'complete': 100
-            };
-            const pct = progressMap[data.status] || 0;
-            progressFill.style.width = pct + '%';
-        }
-        
-        function showResults(data) {
-            const results = document.getElementById('results');
+        function displayClips(data) {
+            clipsContainer.innerHTML = '';
             
             if (!data.clips || data.clips.length === 0) {
-                results.innerHTML = '<p style="color: #94a3b8;">No clips found in this video.</p>';
-                return;
+                clipsContainer.innerHTML = '<p style="color: #94a3b8; text-align: center;">No clips found in this episode.</p>';
+            } else {
+                data.clips.forEach((clip, i) => {
+                    const title = clip.title_options?.punchy || `Clip ${i + 1}`;
+                    const html = `
+                        <div class="clip-card">
+                            <div class="clip-title">
+                                <span class="clip-number">${i + 1}</span>
+                                ${title}
+                            </div>
+                            <div class="clip-time">⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_minutes} min)</div>
+                            <div class="clip-quote">"${clip.engaging_quote || clip.transcript_excerpt?.substring(0, 150) + '...'}"</div>
+                            <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
+                        </div>
+                    `;
+                    clipsContainer.innerHTML += html;
+                });
             }
             
-            let html = '<h2 style="color: #60a5fa; margin-top: 30px;">🎯 Suggested Clips</h2>';
-            
-            data.clips.forEach((clip, i) => {
-                const title = clip.title_options?.punchy || `Clip ${i + 1}`;
-                html += `
-                    <div class="clip-card">
-                        <div class="clip-title">${i + 1}. ${title}</div>
-                        <div class="clip-time">⏱️ ${clip.start_timestamp} - ${clip.end_timestamp} (${clip.duration_minutes} min)</div>
-                        <div class="clip-quote">"${clip.engaging_quote || clip.transcript_excerpt?.substring(0, 100) + '...'}"</div>
-                        <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
-                    </div>
-                `;
-            });
-            
-            results.innerHTML = html;
+            clipsSection.style.display = 'block';
+            clipsSection.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
 </body>
