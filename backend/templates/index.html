@@ -779,6 +779,9 @@
                     xhr.send(formData);
                 });
                 
+                console.log('XHR response status:', xhr.status);
+                console.log('XHR response text:', xhr.responseText);
+                
                 if (xhr.status === 200) {
                     const data = JSON.parse(xhr.responseText);
                     progressFill.style.width = '100%';
@@ -786,13 +789,25 @@
                     showStatus('Upload complete! Analyzing your episode...', 'processing');
                     pollJobStatus(data.jobId);
                 } else {
-                    const data = JSON.parse(xhr.responseText);
-                    showStatus('❌ ' + (data.error || 'Upload failed'), 'error');
+                    console.error('Upload failed with status:', xhr.status);
+                    console.error('Response:', xhr.responseText);
+                    let errorMsg = 'Upload failed';
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        errorMsg = data.error || `Server error: ${xhr.status}`;
+                    } catch (e) {
+                        errorMsg = `Server error: ${xhr.status}`;
+                    }
+                    showStatus('❌ ' + errorMsg, 'error');
                     uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Try Again';
                 }
             } catch (err) {
+                console.error('Upload error:', err);
+                console.error('Error stack:', err.stack);
                 showStatus('❌ Upload failed: ' + err.message, 'error');
                 uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Try Again';
                 progressContainer.classList.remove('visible');
             }
         }
