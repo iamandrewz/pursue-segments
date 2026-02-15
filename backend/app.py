@@ -508,7 +508,7 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
     try:
         # Clean up the response text to extract JSON
         response_text = response.text.strip()
-        print(f"[DEBUG] Raw Gemini response: {response_text[:500]}")
+        print(f"[DEBUG] Raw Gemini response: {response_text[:1000]}")
         
         # Remove markdown code blocks if present
         if response_text.startswith('```json'):
@@ -520,16 +520,17 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
         
         response_text = response_text.strip()
         
-        # Fix common JSON formatting issues from Gemini
-        # Remove trailing commas before closing brackets
-        response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
-        # Replace problematic newlines in JSON keys/values
-        response_text = re.sub(r'\n\s*"', '"', response_text)
-        response_text = re.sub(r'"\s*\n', '"', response_text)
-        # Remove any literal newlines inside strings (replace with space)
-        response_text = re.sub(r'(?<=: )"([^"]*)\n([^"]*)"', r'"\1 \2"', response_text)
+        # AGGRESSIVE JSON fixing for Gemini's malformed output
+        # Replace all newlines with spaces (Gemini puts newlines in JSON keys)
+        response_text = response_text.replace('\n', ' ')
+        response_text = response_text.replace('\r', ' ')
+        # Remove trailing commas
+        response_text = re.sub(r',\s*}', '}', response_text)
+        response_text = re.sub(r',\s*]', ']', response_text)
+        # Fix multiple spaces
+        response_text = re.sub(r'\s+', ' ', response_text)
         
-        print(f"[DEBUG] Cleaned JSON: {response_text[:500]}")
+        print(f"[DEBUG] Cleaned JSON: {response_text[:1000]}")
         
         clips = json.loads(response_text)
         
