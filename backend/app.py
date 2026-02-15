@@ -506,9 +506,8 @@ def analyze_clips_with_gemini(transcript_text, target_audience_profile):
                 max_output_tokens=2048,
             )
         )
-    
-    # Parse JSON response
-    try:
+        
+        # Parse JSON response
         # Clean up the response text to extract JSON
         response_text = response.text.strip()
         print(f"[DEBUG] Raw Gemini response: {response_text[:1000]}")
