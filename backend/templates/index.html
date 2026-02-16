@@ -354,16 +354,19 @@
             cursor: pointer;
             transition: all 0.15s ease;
             user-select: none;
+            color: #cbd5e1; /* Darker, more readable unhighlighted text */
         }
-        
+
         .transcript-word:hover {
             background: rgba(99, 102, 241, 0.2);
+            color: #e2e8f0;
         }
-        
+
         .transcript-word.selected {
-            background: rgba(255, 217, 61, 0.25) !important;
+            background: rgba(255, 217, 61, 0.35) !important;
             color: #FFD93D;
-            font-weight: 500;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         
         .transcript-word.dragging {
@@ -1299,17 +1302,9 @@
                     if (data.words && data.words.length > 0) {
                         currentEditorWords = data.words;
                         
-                        // Find word indices for the current clip
-                        const startSeconds = parseTimestampToSeconds(clipStartTime);
-                        const endSeconds = parseTimestampToSeconds(clipEndTime);
-                        
-                        let startIndex = 0;
-                        let endIndex = data.words.length - 1;
-                        
-                        data.words.forEach((word, i) => {
-                            if (word.start <= startSeconds + 0.5) startIndex = i;
-                            if (word.end <= endSeconds) endIndex = i;
-                        });
+                        // Use segment boundaries from backend (full transcript with segment marked)
+                        const startIndex = data.segmentStartIndex || 0;
+                        const endIndex = data.segmentEndIndex || (data.words.length - 1);
                         
                         // Initialize the word-level editor
                         transcriptEditor = new TranscriptEditor({
