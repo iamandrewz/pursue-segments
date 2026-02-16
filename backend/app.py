@@ -2,7 +2,7 @@
 # Flask API with Gemini 2.0 Flash integration for target audience generation
 # YouTube processing with yt-dlp, Whisper, and clip analysis
 
-from flask import Flask, request, jsonify, send_from_directory, render_template, send_file
+from flask import Flask, request, jsonify, send_from_directory, render_template, send_file, Response
 from flask_cors import CORS
 import os
 import json
@@ -1776,113 +1776,19 @@ def export_clips(job_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def extract_clip_async(job_id, clip_index, video_path, output_path, start_sec, duration, safe_title):
-    """Background task to extract video clip"""
-    import subprocess
-    try:
-        print(f"[CLIP] Starting async extraction: job={job_id}, clip={clip_index}")
-        print(f"[CLIP] Video: {video_path}, Output: {output_path}")
-        print(f"[CLIP] Time: {start_sec}s to {start_sec + duration}s (duration: {duration}s)")
-        
-        # Verify video file exists
-        if not os.path.exists(video_path):
-            print(f"[CLIP] ERROR: Video file not found: {video_path}")
-            return
-        
-        # Update job status to show processing
-        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
-        if job_data:
-            if 'clipStatus' not in job_data:
-                job_data['clipStatus'] = {}
-            job_data['clipStatus'][str(clip_index)] = 'processing'
-            save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
-        
-        # Memory-efficient ffmpeg command for Render's 512MB limit
-        # Using -ss after -i for accurate frame extraction
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', video_path,           # Input first
-            '-ss', str(start_sec),      # Then seek (more accurate)
-            '-t', str(duration),        # Duration
-            '-c:v', 'libx264',          # Video codec
-            '-preset', 'ultrafast',     # Fastest preset
-            '-crf', '23',               # Quality
-            '-maxrate', '2M',
-            '-bufsize', '4M',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-movflags', '+faststart',  # Put moov at beginning
-            '-pix_fmt', 'yuv420p',      # Compatibility
-            '-profile:v', 'baseline',   # Max compatibility
-            '-level', '3.0',
-            '-threads', '1',
-            '-f', 'mp4',                # Force MP4 format
-            output_path
-        ]
-        
-        print(f"[CLIP] Running ffmpeg: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        
-        print(f"[CLIP] ffmpeg stdout: {result.stdout[:500] if result.stdout else 'empty'}")
-        print(f"[CLIP] ffmpeg stderr: {result.stderr[:1000] if result.stderr else 'empty'}")
-        print(f"[CLIP] ffmpeg returncode: {result.returncode}")
-        
-        # Ensure file is fully written and flushed
-        if os.path.exists(output_path):
-            file_size = os.path.getsize(output_path)
-            print(f"[CLIP] Output file size: {file_size} bytes")
-            
-            if file_size < 1000 or result.returncode != 0:
-                print(f"[CLIP] Extraction failed or file too small")
-                try:
-                    os.remove(output_path)
-                except:
-                    pass
-            else:
-                # Post-process to ensure valid MP4
-                print(f"[CLIP] Post-processing MP4...")
-                temp_output = output_path + '.tmp.mp4'
-                fix_cmd = [
-                    'ffmpeg', '-y',
-                    '-i', output_path,
-                    '-c', 'copy',
-                    '-movflags', '+faststart',
-                    temp_output
-                ]
-                fix_result = subprocess.run(fix_cmd, capture_output=True, text=True, timeout=120)
-                if fix_result.returncode == 0 and os.path.exists(temp_output):
-                    os.replace(temp_output, output_path)
-                    print(f"[CLIP] Post-processing complete: {os.path.getsize(output_path)} bytes")
-                else:
-                    print(f"[CLIP] Post-processing failed: {fix_result.stderr[:500]}")
-        
-        # Update status
-        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
-        if job_data:
-            if 'clipStatus' not in job_data:
-                job_data['clipStatus'] = {}
-            if result.returncode == 0 and os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                if file_size > 1000:
-                    job_data['clipStatus'][str(clip_index)] = 'ready'
-                    print(f"[CLIP] Extraction complete: {output_path} ({file_size} bytes)")
-                else:
-                    job_data['clipStatus'][str(clip_index)] = f'error: File too small ({file_size} bytes)'
-                    print(f"[CLIP] Extraction failed: File too small ({file_size} bytes)")
-            else:
-                error_msg = result.stderr[:200] if result.stderr else 'Unknown ffmpeg error'
-                job_data['clipStatus'][str(clip_index)] = f'error: {error_msg}'
-                print(f"[CLIP] Extraction failed: {error_msg}")
-            save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
-            
-    except Exception as e:
-        print(f"[CLIP] Async extraction error: {e}")
-        import traceback
-        traceback.print_exc()
-
 @app.route('/api/job/<job_id>/clip/<int:clip_index>/download', methods=['GET', 'OPTIONS'])
 def download_clip_video(job_id, clip_index):
     """Extract and download a specific clip as video file (async)"""
+    
+    def stream_file(file_path, chunk_size=65536):
+        """Stream file in chunks to avoid memory issues with large video files"""
+        with open(file_path, 'rb') as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+    
     if request.method == 'OPTIONS':
         return '', 204
     try:
@@ -1940,7 +1846,14 @@ def download_clip_video(job_id, clip_index):
         # Check if already extracted and ready (must have content)
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
             print(f"[CLIP] Serving existing clip: {output_path} ({os.path.getsize(output_path)} bytes)")
-            return send_file(output_path, as_attachment=True, download_name=output_filename)
+            return Response(
+                stream_file(output_path),
+                mimetype='video/mp4',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{output_filename}"',
+                    'Content-Length': os.path.getsize(output_path)
+                }
+            )
 
         # Check if currently processing
         clip_status = job_data.get('clipStatus', {}).get(str(clip_index))
@@ -1955,7 +1868,14 @@ def download_clip_video(job_id, clip_index):
         if os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
             if file_size > 10000:
-                return send_file(output_path, as_attachment=True, download_name=output_filename)
+                return Response(
+                    stream_file(output_path),
+                    mimetype='video/mp4',
+                    headers={
+                        'Content-Disposition': f'attachment; filename="{output_filename}"',
+                        'Content-Length': os.path.getsize(output_path)
+                    }
+                )
             else:
                 os.remove(output_path)
 
@@ -1989,7 +1909,14 @@ def download_clip_video(job_id, clip_index):
         if result.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
             return jsonify({'error': 'Extraction failed', 'details': result.stderr[:200]}), 500
 
-        return send_file(output_path, as_attachment=True, download_name=output_filename)
+        return Response(
+            stream_file(output_path),
+            mimetype='video/mp4',
+            headers={
+                'Content-Disposition': f'attachment; filename="{output_filename}"',
+                'Content-Length': os.path.getsize(output_path)
+            }
+        )
 
     except Exception as e:
         print(f"[CLIP] Error: {e}")
