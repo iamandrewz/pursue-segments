@@ -831,6 +831,198 @@
             border-radius: 6px;
             margin-left: 8px;
         }
+        
+        /* Time-Based Editor Styles */
+        .time-controls {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin: 25px 0;
+            padding: 25px;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 16px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        
+        .time-input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .time-input-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .time-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .time-btn {
+            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+            min-width: 60px;
+        }
+        
+        .time-btn.small {
+            min-width: 50px;
+            padding: 10px 12px;
+            font-size: 12px;
+        }
+        
+        .time-btn:hover {
+            background: linear-gradient(135deg, #475569 0%, #334155 100%);
+            border-color: #6366f1;
+            transform: translateY(-1px);
+        }
+        
+        .time-btn:active {
+            transform: translateY(0);
+            background: #6366f1;
+        }
+        
+        .time-display {
+            background: #0f172a;
+            border: 2px solid #6366f1;
+            color: #60a5fa;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            text-align: center;
+            min-width: 140px;
+            letter-spacing: 2px;
+        }
+        
+        .download-confirmation {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .confirm-badge {
+            font-size: 14px;
+            color: #34d399;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .confirm-times {
+            font-size: 28px;
+            font-weight: 700;
+            color: #10b981;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            letter-spacing: 1px;
+        }
+        
+        .confirm-stats {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #6ee7b7;
+        }
+        
+        .preview-section {
+            margin: 25px 0;
+        }
+        
+        .preview-section h4 {
+            font-size: 15px;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        .transcript-preview {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            line-height: 1.8;
+            font-size: 16px;
+            color: #cbd5e1;
+        }
+        
+        .transcript-preview .preview-text {
+            color: #e2e8f0;
+        }
+        
+        .transcript-preview .preview-empty {
+            color: #64748b;
+            font-style: italic;
+        }
+        
+        .full-transcript-section {
+            margin: 25px 0;
+        }
+        
+        .full-transcript-section h4 {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .full-transcript {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid #334155;
+            font-size: 14px;
+            line-height: 2;
+        }
+        
+        .segment {
+            display: inline;
+            padding: 2px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .segment:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        
+        .segment.active {
+            background: rgba(255, 217, 61, 0.25);
+            color: #ffd93d;
+        }
+        
+        .segment-time {
+            font-size: 10px;
+            color: #64748b;
+            font-family: monospace;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        
+        .segment.active .segment-time {
+            color: #ffd93d;
+        }
     </style>
 
     <!-- Load Chunked Uploader Module -->
@@ -1299,89 +1491,76 @@
             clipsSection.scrollIntoView({ behavior: 'smooth' });
         }
         
-        // ========== Transcript Editor ==========
+        // ========== Time-Based Transcript Editor ==========
         
         let currentClipIndex = null;
         let currentJobId = null;
-        let currentTranscript = null;
+        let currentClipStart = 0;
+        let currentClipEnd = 0;
+        let whisperSegments = [];
         
-        // Word-level transcript editor instance
-        let transcriptEditor = null;
-        let currentEditorWords = [];
-        
+        // Time-based editor functions
         function openEditor(clipIndex, startTime, endTime, title, jobId) {
             currentClipIndex = clipIndex;
             currentJobId = jobId;
+            
+            // Parse timestamps to seconds (with decimal precision)
+            currentClipStart = parseTimestampToSeconds(startTime);
+            currentClipEnd = parseTimestampToSeconds(endTime);
+            
             document.getElementById('editorClipTitle').textContent = title;
-            document.getElementById('editorClipTime').textContent = `${startTime} - ${endTime}`;
-            document.getElementById('editStartTime').value = startTime;
-            document.getElementById('editEndTime').value = endTime;
+            document.getElementById('editStartTime').value = formatSecondsToTimestamp(currentClipStart);
+            document.getElementById('editEndTime').value = formatSecondsToTimestamp(currentClipEnd);
+            
+            updateConfirmation();
             document.getElementById('editorModal').style.display = 'flex';
             
-            // Load word-level transcript
-            loadWordTranscript(startTime, endTime);
+            // Load Whisper segments for preview
+            loadWhisperSegments();
         }
         
         function closeEditor() {
             document.getElementById('editorModal').style.display = 'none';
             currentClipIndex = null;
-            if (transcriptEditor) {
-                transcriptEditor = null;
-            }
+            currentJobId = null;
+            whisperSegments = [];
         }
         
-        async function loadWordTranscript(clipStartTime, clipEndTime) {
-            const transcriptDiv = document.getElementById('editorTranscript');
-            transcriptDiv.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 40px;">Loading transcript words...</p>';
-            
-            try {
-                // Fetch word-level transcript from backend
-                const response = await fetch(`${API_URL}/api/job/${currentJobId}/clip/${currentClipIndex}/words`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.words && data.words.length > 0) {
-                        currentEditorWords = data.words;
-                        
-                        // Use segment boundaries from backend (full transcript with segment marked)
-                        const startIndex = data.segmentStartIndex || 0;
-                        const endIndex = data.segmentEndIndex || (data.words.length - 1);
-                        
-                        // Initialize the word-level editor
-                        transcriptEditor = new TranscriptEditor({
-                            container: transcriptDiv,
-                            onSelectionChange: (selection) => {
-                                // Update time inputs when selection changes
-                                document.getElementById('editStartTime').value = formatSecondsToTimestamp(selection.startTime);
-                                document.getElementById('editEndTime').value = formatSecondsToTimestamp(selection.endTime);
-                                document.getElementById('editorClipTime').textContent = 
-                                    `${formatSecondsToTimestamp(selection.startTime)} - ${formatSecondsToTimestamp(selection.endTime)}`;
-                            }
-                        });
-                        
-                        transcriptEditor.render(data.words, startIndex, endIndex);
-                        
-                        // Scroll to selection after a short delay
-                        setTimeout(() => {
-                            transcriptEditor.scrollToSelection();
-                        }, 100);
-                        
-                        return;
-                    }
+        // Adjust time with ±0.1s precision
+        function adjustTime(type, delta) {
+            if (type === 'start') {
+                currentClipStart = Math.max(0, currentClipStart + delta);
+                // Ensure start doesn't exceed end
+                if (currentClipStart >= currentClipEnd) {
+                    currentClipStart = currentClipEnd - 0.1;
                 }
-            } catch (err) {
-                console.error('Failed to load word transcript:', err);
+            } else {
+                currentClipEnd = Math.max(currentClipStart + 0.1, currentClipEnd + delta);
             }
             
-            // Fallback: show message
-            transcriptDiv.innerHTML = `
-                <div style="padding: 40px; text-align: center; color: #94a3b8;">
-                    <p>Word-level transcript not available for this clip.</p>
-                    <p>Use the Save Changes button to apply timestamp edits.</p>
-                </div>
-            `;
+            // Update displays
+            document.getElementById('editStartTime').value = formatSecondsToTimestamp(currentClipStart);
+            document.getElementById('editEndTime').value = formatSecondsToTimestamp(currentClipEnd);
+            
+            updateConfirmation();
+            updatePreview();
+            highlightActiveSegments();
+        }
+        
+        // Format seconds to timestamp with 0.1s precision
+        function formatSecondsToTimestamp(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hrs > 0) {
+                return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toFixed(1).padStart(4, '0')}`;
+            }
+            return `${mins}:${secs.toFixed(1).padStart(4, '0')}`;
         }
         
         function parseTimestampToSeconds(timestamp) {
+            // Handle formats like "1:23", "1:23.4", "0:01:23.5"
             const parts = timestamp.split(':').map(Number);
             if (parts.length === 3) {
                 return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -1391,15 +1570,133 @@
             return parts[0] || 0;
         }
         
-        function formatSecondsToTimestamp(seconds) {
-            const hrs = Math.floor(seconds / 3600);
-            const mins = Math.floor((seconds % 3600) / 60);
-            const secs = Math.floor(seconds % 60);
+        // Update visual confirmation section
+        function updateConfirmation() {
+            const confirmTimes = document.getElementById('confirmTimes');
+            const wordCountEl = document.getElementById('wordCount');
+            const durationSecEl = document.getElementById('durationSec');
             
-            if (hrs > 0) {
-                return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            confirmTimes.textContent = `${formatSecondsToTimestamp(currentClipStart)} - ${formatSecondsToTimestamp(currentClipEnd)}`;
+            
+            // Calculate duration
+            const duration = currentClipEnd - currentClipStart;
+            durationSecEl.textContent = duration.toFixed(1);
+            
+            // Count words in selected range
+            let words = 0;
+            whisperSegments.forEach(seg => {
+                if (seg.start >= currentClipStart && seg.end <= currentClipEnd) {
+                    words += (seg.text || '').split(/\s+/).filter(w => w.length > 0).length;
+                } else if (seg.start < currentClipEnd && seg.end > currentClipStart) {
+                    // Partial segment - estimate word count
+                    const overlap = Math.min(seg.end, currentClipEnd) - Math.max(seg.start, currentClipStart);
+                    const ratio = overlap / (seg.end - seg.start);
+                    words += Math.round(((seg.text || '').split(/\s+/).filter(w => w.length > 0).length) * ratio);
+                }
+            });
+            wordCountEl.textContent = words;
+        }
+        
+        // Load Whisper segments from backend
+        async function loadWhisperSegments() {
+            const previewDiv = document.getElementById('transcriptPreview');
+            const fullDiv = document.getElementById('fullTranscript');
+            
+            previewDiv.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Loading transcript...</p>';
+            fullDiv.innerHTML = '';
+            
+            try {
+                // Fetch segment-level transcript from backend
+                const response = await fetch(`${API_URL}/api/job/${currentJobId}/clip/${currentClipIndex}/segments`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    whisperSegments = data.segments || [];
+                    
+                    if (whisperSegments.length > 0) {
+                        updatePreview();
+                        renderFullTranscript();
+                        highlightActiveSegments();
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load Whisper segments:', err);
             }
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
+            
+            // Fallback if no segments available
+            previewDiv.innerHTML = '<p style="color: #64748b; text-align: center; padding: 20px; font-style: italic;">Segment data not available. Time-based editing will still work for precise extraction.</p>';
+            whisperSegments = [];
+        }
+        
+        // Update live preview with text in selected range
+        function updatePreview() {
+            const previewDiv = document.getElementById('transcriptPreview');
+            
+            if (whisperSegments.length === 0) {
+                return;
+            }
+            
+            // Find all text within the selected time range
+            let previewText = '';
+            whisperSegments.forEach(seg => {
+                if (seg.start < currentClipEnd && seg.end > currentClipStart) {
+                    previewText += seg.text + ' ';
+                }
+            });
+            
+            previewText = previewText.trim();
+            
+            if (previewText) {
+                previewDiv.innerHTML = `<span class="preview-text">"${previewText}"</span>`;
+            } else {
+                previewDiv.innerHTML = '<span class="preview-empty">No transcript text in selected range</span>';
+            }
+        }
+        
+        // Render full transcript with segment times
+        function renderFullTranscript() {
+            const fullDiv = document.getElementById('fullTranscript');
+            
+            if (whisperSegments.length === 0) {
+                fullDiv.innerHTML = '<p style="color: #64748b; text-align: center; padding: 20px;">No transcript available</p>';
+                return;
+            }
+            
+            let html = '';
+            whisperSegments.forEach((seg, i) => {
+                const timeStr = formatSecondsToTimestamp(seg.start).substring(0, 7);
+                html += `<span class="segment" data-index="${i}" onclick="seekToSegment(${seg.start})">
+                    <span class="segment-time">[${timeStr}]</span>${seg.text}
+                </span> `;
+            });
+            
+            fullDiv.innerHTML = html;
+        }
+        
+        // Highlight segments within current selection
+        function highlightActiveSegments() {
+            const segments = document.querySelectorAll('.segment');
+            segments.forEach((seg, i) => {
+                if (whisperSegments[i]) {
+                    const s = whisperSegments[i].start;
+                    const e = whisperSegments[i].end;
+                    if (s >= currentClipStart && e <= currentClipEnd) {
+                        seg.classList.add('active');
+                    } else {
+                        seg.classList.remove('active');
+                    }
+                }
+            });
+        }
+        
+        // Click on segment to jump to that time
+        function seekToSegment(time) {
+            currentClipStart = time;
+            document.getElementById('editStartTime').value = formatSecondsToTimestamp(currentClipStart);
+            updateConfirmation();
+            updatePreview();
+            highlightActiveSegments();
         }
         
         async function downloadClip(clipIndex, jobId) {
@@ -1460,35 +1757,20 @@
         }
         
         async function saveClipEdit() {
-            const startTime = document.getElementById('editStartTime').value;
-            const endTime = document.getElementById('editEndTime').value;
+            const startTime = formatSecondsToTimestamp(currentClipStart);
+            const endTime = formatSecondsToTimestamp(currentClipEnd);
             
             try {
-                let response;
-                
-                // If word-level editor is active, use word-based API
-                if (transcriptEditor && currentEditorWords.length > 0) {
-                    const selection = transcriptEditor.getSelection();
-                    response = await fetch(`${API_URL}/api/job/${currentJobId}/clip/${currentClipIndex}/update-words`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            startWordIndex: selection.startIndex,
-                            endWordIndex: selection.endIndex
-                        })
-                    });
-                } else {
-                    // Fallback to timestamp-based API
-                    response = await fetch(`${API_URL}/api/job/${currentJobId}/save-clip`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            clipIndex: currentClipIndex,
-                            startTimestamp: startTime,
-                            endTimestamp: endTime
-                        })
-                    });
-                }
+                // Use timestamp-based API with precise times
+                const response = await fetch(`${API_URL}/api/job/${currentJobId}/save-clip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clipIndex: currentClipIndex,
+                        startTimestamp: startTime,
+                        endTimestamp: endTime
+                    })
+                });
                 
                 if (response.ok) {
                     showStatus(`✅ Clip ${currentClipIndex + 1} updated: ${startTime} - ${endTime}`, 'success');

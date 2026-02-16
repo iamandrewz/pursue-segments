@@ -2381,6 +2381,62 @@ def update_clip_words(job_id, clip_index):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/job/<job_id>/clip/<int:clip_index>/segments', methods=['GET', 'OPTIONS'])
+def get_clip_segments(job_id, clip_index):
+    """Get Whisper segments for a specific clip (for time-based editor).
+    
+    Returns segments that overlap with the clip time range.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if clips exist
+        if 'clips' not in job_data or not job_data['clips']:
+            return jsonify({'error': 'No clips found for this job'}), 400
+        
+        # Validate clip index
+        clips = job_data['clips']
+        if clip_index < 0 or clip_index >= len(clips):
+            return jsonify({'error': 'Invalid clip index'}), 400
+        
+        clip = clips[clip_index]
+        clip_start = parse_timestamp_to_seconds(clip.get('start_timestamp', '00:00'))
+        clip_end = parse_timestamp_to_seconds(clip.get('end_timestamp', '00:00'))
+        
+        # Get segments within clip range
+        transcript_data = job_data.get('transcript', {})
+        all_segments = transcript_data.get('segments', [])
+        
+        clip_segments = []
+        for seg in all_segments:
+            seg_start = seg.get('start_seconds', 0)
+            seg_end = seg.get('end_seconds', 0)
+            # Include segments that overlap with clip
+            if seg_start < clip_end and seg_end > clip_start:
+                clip_segments.append(seg)
+        
+        return jsonify({
+            'jobId': job_id,
+            'clipIndex': clip_index,
+            'startTimestamp': clip.get('start_timestamp', '00:00'),
+            'endTimestamp': clip.get('end_timestamp', '00:00'),
+            'segments': clip_segments,
+            'totalDuration': transcript_data.get('duration', '00:00')
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] get_clip_segments: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/job/<job_id>/word-search', methods=['GET', 'OPTIONS'])
 def search_words_in_transcript(job_id):
     """Search for words in the transcript.
