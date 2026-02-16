@@ -2419,7 +2419,11 @@ def get_clip_segments(job_id, clip_index):
             seg_end = seg.get('end_seconds', 0)
             # Include segments that overlap with clip
             if seg_start < clip_end and seg_end > clip_start:
-                clip_segments.append(seg)
+                # Normalize to 'start'/'end' for frontend
+                normalized_seg = dict(seg)
+                normalized_seg['start'] = seg_start
+                normalized_seg['end'] = seg_end
+                clip_segments.append(normalized_seg)
         
         return jsonify({
             'jobId': job_id,
