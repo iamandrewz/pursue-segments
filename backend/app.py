@@ -2253,27 +2253,26 @@ def update_clip_words(job_id, clip_index):
             return jsonify({'error': 'Invalid clip index'}), 400
         
         clip = clips[clip_index]
-        start_timestamp = clip.get('start_timestamp', '00:00')
-        end_timestamp = clip.get('end_timestamp', '00:00')
         
-        # Get transcript text for this clip
-        transcript_text = ''
+        # Get FULL transcript text (not just clip portion) - matches get_clip_words
+        full_transcript_text = ''
+        max_end_time = 0
         if 'transcript' in job_data:
             segments = job_data['transcript'].get('segments', [])
-            start_sec = parse_timestamp_to_seconds(start_timestamp)
-            end_sec = parse_timestamp_to_seconds(end_timestamp)
-            
             for seg in segments:
-                seg_start = seg.get('start_seconds', 0)
+                full_transcript_text += seg.get('text', '') + ' '
                 seg_end = seg.get('end_seconds', 0)
-                if seg_start < end_sec and seg_end > start_sec:
-                    transcript_text += seg.get('text', '') + ' '
+                if seg_end > max_end_time:
+                    max_end_time = seg_end
         
-        if not transcript_text.strip():
-            transcript_text = clip.get('transcript_excerpt', '')
+        if not full_transcript_text.strip():
+            full_transcript_text = clip.get('transcript_excerpt', '')
+            max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
         
-        # Parse words using simple estimation
-        words = parse_transcript_to_words(transcript_text, start_timestamp, end_timestamp)
+        # Parse FULL transcript into words - matches get_clip_words
+        total_duration = job_data.get('duration_seconds') or max_end_time or 3600
+        words = parse_transcript_to_words(full_transcript_text, '00:00',
+                                         format_seconds_to_timestamp(total_duration))
         
         if not words:
             return jsonify({'error': 'No words found in transcript'}), 400
