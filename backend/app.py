@@ -2157,18 +2157,24 @@ def get_clip_words(job_id, clip_index):
         
         # Get FULL transcript text (not just clip portion)
         full_transcript_text = ''
+        max_end_time = 0
         if 'transcript' in job_data:
             segments = job_data['transcript'].get('segments', [])
             for seg in segments:
                 full_transcript_text += seg.get('text', '') + ' '
+                # Track the actual end time of the transcript
+                seg_end = seg.get('end_seconds', 0)
+                if seg_end > max_end_time:
+                    max_end_time = seg_end
         
         # Fallback to clip excerpt if no full transcript
         if not full_transcript_text.strip():
             full_transcript_text = clip.get('transcript_excerpt', '')
+            max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
         
         # Parse FULL transcript into words with estimated timestamps
-        # Estimate from 00:00 to end of transcript
-        total_duration = job_data.get('duration_seconds', 3600)  # Default 1 hour
+        # Use actual transcript duration, not default
+        total_duration = job_data.get('duration_seconds') or max_end_time or 3600
         words = parse_transcript_to_words(full_transcript_text, '00:00', 
                                          format_seconds_to_timestamp(total_duration))
         
