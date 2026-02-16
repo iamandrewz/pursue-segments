@@ -553,10 +553,10 @@ def parse_timestamp_to_seconds(timestamp_str):
     timestamp_str = str(timestamp_str).strip()
     parts = timestamp_str.split(':')
     if len(parts) == 3:
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
     elif len(parts) == 2:
-        return int(parts[0]) * 60 + int(parts[1])
-    return int(parts[0])
+        return int(parts[0]) * 60 + float(parts[1])
+    return float(parts[0])
 
 def format_seconds_to_timestamp(seconds):
     """Convert seconds to MM:SS or HH:MM:SS format"""
