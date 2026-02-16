@@ -11,6 +11,7 @@ import re
 import threading
 import time
 import hashlib
+import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -401,8 +402,10 @@ def extract_youtube_id(url):
     return None
 
 def parse_timestamp_to_seconds(timestamp_str):
-    """Convert timestamp string (HH:MM:SS or MM:SS) to seconds"""
-    parts = timestamp_str.strip().split(':')
+    """Convert timestamp string (HH:MM:SS or MM:SS) or integer to seconds"""
+    # Handle both string and numeric inputs
+    timestamp_str = str(timestamp_str).strip()
+    parts = timestamp_str.split(':')
     if len(parts) == 3:
         return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
     elif len(parts) == 2:
@@ -1960,6 +1963,10 @@ def download_clip_video(job_id, clip_index):
         start_sec = parse_timestamp_to_seconds(start_ts)
         end_sec = parse_timestamp_to_seconds(end_ts)
         duration = end_sec - start_sec
+        
+        # Ensure minimum duration to avoid empty/corrupt files
+        if duration <= 0:
+            return jsonify({'error': 'Invalid clip duration', 'details': f'start={start_sec}s, end={end_sec}s'}), 400
         
         print(f"[CLIP] Extracting {start_ts} ({start_sec}s) to {end_ts} ({end_sec}s), duration: {duration}s")
 
