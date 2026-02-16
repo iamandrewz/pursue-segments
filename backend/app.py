@@ -4,6 +4,7 @@
 
 from flask import Flask, request, jsonify, send_from_directory, render_template, send_file, Response
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 import json
 import uuid
@@ -37,37 +38,95 @@ load_dotenv()
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, 'templates'), static_folder=os.path.join(BACKEND_DIR, 'static'), static_url_path='/static')
 
-# Configure max content length for file uploads (5GB)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5GB in bytes
+# =============================================================================
+# NGROK/PRODUCTION CONFIGURATION
+# =============================================================================
+
+# Trust proxy headers (ngrok, Cloudflare, etc.) - MUST be before any request handling
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# Configure max content length for file uploads (2GB for ngrok/production)
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2GB in bytes
+
+# Increase Flask default timeout for long uploads (ngrok has 5min timeout by default)
+# Note: ngrok HTTP tunnels have a 5-minute default timeout. For longer uploads,
+# either use the ngrok paid plan or implement chunked uploads (already in place).
+# We set Flask's internal timeout here but ngrok still needs configuration.
+import socket
+socket.setdefaulttimeout(600)  # 10 minutes for socket operations
+
+# Request timeout - Flask will wait longer before killing connections
+app.config['REQUEST_TIMEOUT'] = 600
+app.config['RESPONSE_TIMEOUT'] = 600
+
+# Production settings (disable debug)
+app.config['DEBUG'] = False
+app.config['TESTING'] = False
 
 # Parse CORS origins from env var (comma-separated) or use defaults
 cors_origins_env = os.getenv('CORS_ORIGINS')
 if cors_origins_env:
     cors_origins = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
 else:
-    # Default origins for development and production
+    # Default origins for development and production (including ngrok)
     cors_origins = [
         'http://localhost:3000',
         'https://segments.pursuepodcasting.com',
-        'https://pursue-segments-v5.vercel.app'
+        'https://pursue-segments-v5.vercel.app',
+        # ngrok domains (wildcard pattern won't work with CORS, user must set CORS_ORIGINS)
     ]
 
-# Apply CORS to all /api/* routes - allow all origins for now
+# Get ngrok domain from environment if available (ngrok sets NGROK_URL or similar)
+ngrok_url = os.getenv('NGROK_URL') or os.getenv('NGROK_DOMAIN')
+if ngrok_url:
+    # Extract origin from ngrok URL
+    if ngrok_url.startswith('http'):
+        from urllib.parse import urlparse
+        parsed = urlparse(ngrok_url)
+        ngrok_origin = f"{parsed.scheme}://{parsed.netloc}"
+        cors_origins.append(ngrok_origin)
+        print(f"[STARTUP] Added ngrok origin: {ngrok_origin}")
+
+# Apply CORS to all /api/* routes
 CORS(app, resources={
     r"/api/*": {
-        "origins": "*",
+        "origins": cors_origins,
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": False
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+        "expose_headers": ["Content-Disposition"],  # For file downloads
+        "supports_credentials": True if not any('*' in o for o in cors_origins) else False,
+        "max_age": 3600  # Cache preflight for 1 hour
     }
 })
 
-# NUCLEAR CORS FIX: Manually add CORS headers to ALL responses
+# NUCLEAR CORS FIX: Manually add CORS headers to ALL responses (including ngrok)
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    # Get the request's origin for dynamic CORS
+    request_origin = request.headers.get('Origin', '*')
+    
+    # Use configured origins or allow all if in development
+    allowed_origins = cors_origins if cors_origins else ['*']
+    
+    # If origin is in allowed list, use it; otherwise use first allowed or *
+    if request_origin in allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', request_origin)
+    elif '*' in allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    elif allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', allowed_origins[0])
+    else:
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Expose-Headers', 'Content-Disposition')
+    response.headers.add('Access-Control-Max-Age', '3600')
+    
+    # Handle ngrok-specific headers
+    # ngrok adds these headers - we pass them through but don't need special handling
+    # ngrok-skip-browser-warning is sometimes sent by clients
+    
     return response
 
 # Chunked upload routes added below after DATA_DIR definition
@@ -1778,16 +1837,10 @@ def export_clips(job_id):
 
 @app.route('/api/job/<job_id>/clip/<int:clip_index>/download', methods=['GET', 'OPTIONS'])
 def download_clip_video(job_id, clip_index):
-    """Extract and download a specific clip as video file (async)"""
+    """Extract and download a specific clip as video file.
     
-    def stream_file(file_path, chunk_size=65536):
-        """Stream file in chunks to avoid memory issues with large video files"""
-        with open(file_path, 'rb') as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
+    Uses send_file for memory-efficient streaming instead of Response generator.
+    """
     
     if request.method == 'OPTIONS':
         return '', 204
@@ -1846,13 +1899,12 @@ def download_clip_video(job_id, clip_index):
         # Check if already extracted and ready (must have content)
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
             print(f"[CLIP] Serving existing clip: {output_path} ({os.path.getsize(output_path)} bytes)")
-            return Response(
-                stream_file(output_path),
+            # Use send_file - most memory-efficient for file serving
+            return send_file(
+                output_path,
                 mimetype='video/mp4',
-                headers={
-                    'Content-Disposition': f'attachment; filename="{output_filename}"',
-                    'Content-Length': os.path.getsize(output_path)
-                }
+                as_attachment=True,
+                download_name=output_filename
             )
 
         # Check if currently processing
@@ -1868,13 +1920,11 @@ def download_clip_video(job_id, clip_index):
         if os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
             if file_size > 10000:
-                return Response(
-                    stream_file(output_path),
+                return send_file(
+                    output_path,
                     mimetype='video/mp4',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="{output_filename}"',
-                        'Content-Length': os.path.getsize(output_path)
-                    }
+                    as_attachment=True,
+                    download_name=output_filename
                 )
             else:
                 os.remove(output_path)
@@ -1917,13 +1967,12 @@ def download_clip_video(job_id, clip_index):
         if result.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
             return jsonify({'error': 'Extraction failed', 'details': 'ffmpeg process failed'}), 500
 
-        return Response(
-            stream_file(output_path),
+        # Use send_file - most memory-efficient for file serving
+        return send_file(
+            output_path,
             mimetype='video/mp4',
-            headers={
-                'Content-Disposition': f'attachment; filename="{output_filename}"',
-                'Content-Length': os.path.getsize(output_path)
-            }
+            as_attachment=True,
+            download_name=output_filename
         )
 
     except Exception as e:
