@@ -1433,8 +1433,8 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            startWordIndex: selection.startWordIndex,
-                            endWordIndex: selection.endWordIndex
+                            startWordIndex: selection.startIndex,
+                            endWordIndex: selection.endIndex
                         })
                     });
                 } else {

@@ -2228,9 +2228,13 @@ def update_clip_words(job_id, clip_index):
         start_word_index = data.get('startWordIndex')
         end_word_index = data.get('endWordIndex')
         
+        print(f"[UPDATE_WORDS] Received: startWordIndex={start_word_index}, endWordIndex={end_word_index}")
+        print(f"[UPDATE_WORDS] Request data: {data}")
+        
         # Validate required parameters
         if start_word_index is None or end_word_index is None:
-            return jsonify({'error': 'startWordIndex and endWordIndex are required'}), 400
+            print(f"[UPDATE_WORDS] ERROR: Missing parameters")
+            return jsonify({'error': 'startWordIndex and endWordIndex are required', 'received': data}), 400
         
         if start_word_index < 0 or end_word_index < 0:
             return jsonify({'error': 'Word indices must be non-negative'}), 400
