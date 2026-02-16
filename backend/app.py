@@ -34,6 +34,93 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
+# Import word-level transcript module
+from word_level_transcript import (
+    WordLevelTranscriptParser,
+    ClipWordEditor,
+    get_cached_word_transcript,
+    cache_word_transcript,
+    create_word_transcript_from_job,
+    format_timestamp,
+    parse_timestamp
+)
+
+# =============================================================================
+# HELPER FUNCTION: Parse transcript text to words
+# =============================================================================
+
+def parse_transcript_to_words(transcript_text, start_time, end_time):
+    """
+    Split transcript text into individual words with estimated timestamps.
+    
+    Args:
+        transcript_text: Plain text transcript string
+        start_time: Start time in seconds (float) or timestamp string (MM:SS or HH:MM:SS)
+        end_time: End time in seconds (float) or timestamp string
+    
+    Returns:
+        List of word dictionaries with format:
+        [{text: "word", start: 0.0, end: 0.5, index: 0}, ...]
+    """
+    import re
+    
+    # Handle timestamp string inputs
+    def to_seconds(ts):
+        if isinstance(ts, (int, float)):
+            return float(ts)
+        ts = str(ts).strip()
+        parts = ts.split(':')
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        elif len(parts) == 2:
+            return int(parts[0]) * 60 + float(parts[1])
+        return float(ts)
+    
+    start_sec = to_seconds(start_time)
+    end_sec = to_seconds(end_time)
+    duration = end_sec - start_sec
+    
+    # Clean and split text into words
+    cleaned_text = re.sub(r'\[[^\]]*\]', '', transcript_text)  # Remove [timestamp] style
+    cleaned_text = re.sub(r'\d+:\d+\.?\d*', '', cleaned_text)   # Remove time codes
+    cleaned_text = re.sub(r'[^\w\s\'-]', '', cleaned_text)     # Keep apostrophes and hyphens
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()   # Normalize whitespace
+    
+    word_list = cleaned_text.split()
+    
+    if not word_list:
+        return []
+    
+    # Estimate ~0.3 seconds per word on average
+    avg_word_duration = 0.3
+    
+    # Adjust duration if needed to avoid empty clips
+    if duration <= 0:
+        duration = len(word_list) * avg_word_duration
+        end_sec = start_sec + duration
+    
+    # Calculate duration per word using actual segment duration
+    words = []
+    current_time = start_sec
+    
+    for i, word in enumerate(word_list):
+        # Calculate word duration - proportionally based on word length
+        word_duration = (len(word) / max(len(cleaned_text), 1)) * duration
+        # Ensure minimum duration of 0.1 seconds
+        word_duration = max(word_duration, 0.1)
+        
+        words.append({
+            'text': word,
+            'start': round(current_time, 2),
+            'end': round(current_time + word_duration, 2),
+            'index': i
+        })
+        
+        current_time += word_duration
+    
+    return words
+
+
 # Get the directory where this file is located
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BACKEND_DIR, 'templates'), static_folder=os.path.join(BACKEND_DIR, 'static'), static_url_path='/static')
@@ -1984,6 +2071,305 @@ def download_clip_video(job_id, clip_index):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# WORD-LEVEL TRANSCRIPT EDITING API
+# ============================================================================
+
+@app.route('/api/job/<job_id>/transcript-words', methods=['GET', 'OPTIONS'])
+def get_transcript_words(job_id):
+    """Get word-level transcript for a job.
+    
+    Returns transcript parsed into individual words with timestamps.
+    Each word includes: text, start_time, end_time, index
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if transcript exists
+        if 'transcript' not in job_data:
+            return jsonify({'error': 'Transcript not yet available'}), 400
+        
+        # Check cache first
+        word_transcript = get_cached_word_transcript(job_id)
+        
+        if not word_transcript:
+            # Parse transcript into words
+            word_transcript = create_word_transcript_from_job(job_data)
+            
+            # Cache for future requests
+            cache_word_transcript(job_id, word_transcript)
+        
+        # Return word-level data
+        return jsonify({
+            'jobId': job_id,
+            'words': word_transcript.to_dict()['words'],
+            'word_count': len(word_transcript.words),
+            'total_duration': word_transcript.total_duration,
+            'segments': job_data.get('transcript', {}).get('segments', [])
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] get_transcript_words: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/job/<job_id>/clip/<int:clip_index>/words', methods=['GET', 'OPTIONS'])
+def get_clip_words(job_id, clip_index):
+    """Get word-level transcript for a specific clip.
+    
+    Returns individual words with estimated timestamps based on clip duration.
+    Format: [{text: "word", start: 0.0, end: 0.5, index: 0}, ...]
+    
+    Uses simple estimation (~0.3 seconds per word) from plain text transcript.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if clips exist
+        if 'clips' not in job_data or not job_data['clips']:
+            return jsonify({'error': 'No clips found for this job'}), 400
+        
+        # Validate clip index
+        clips = job_data['clips']
+        if clip_index < 0 or clip_index >= len(clips):
+            return jsonify({'error': 'Invalid clip index'}), 400
+        
+        clip = clips[clip_index]
+        start_timestamp = clip.get('start_timestamp', '00:00')
+        end_timestamp = clip.get('end_timestamp', '00:00')
+        
+        # Get transcript text for this clip
+        transcript_text = ''
+        if 'transcript' in job_data:
+            segments = job_data['transcript'].get('segments', [])
+            start_sec = parse_timestamp_to_seconds(start_timestamp)
+            end_sec = parse_timestamp_to_seconds(end_timestamp)
+            
+            # Extract segments within clip range
+            for seg in segments:
+                seg_start = seg.get('start_seconds', 0)
+                seg_end = seg.get('end_seconds', 0)
+                # Include segments that overlap with clip range
+                if seg_start < end_sec and seg_end > start_sec:
+                    transcript_text += seg.get('text', '') + ' '
+        
+        # Fallback to transcript excerpt if no segments
+        if not transcript_text.strip():
+            transcript_text = clip.get('transcript_excerpt', '')
+        
+        # Parse transcript into words with estimated timestamps
+        words = parse_transcript_to_words(transcript_text, start_timestamp, end_timestamp)
+        
+        return jsonify({
+            'jobId': job_id,
+            'clipIndex': clip_index,
+            'startTimestamp': start_timestamp,
+            'endTimestamp': end_timestamp,
+            'words': words,
+            'wordCount': len(words)
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] get_clip_words: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/job/<job_id>/clip/<int:clip_index>/update-words', methods=['POST', 'OPTIONS'])
+def update_clip_words(job_id, clip_index):
+    """Update clip boundaries based on word indices.
+    
+    Request body:
+    {
+        "start_word_index": 10,      // Starting word index
+        "end_word_index": 50,       // Ending word index
+        "adjust_start": "extend" | "cut" | "none",  // How to handle start boundary
+        "adjust_end": "extend" | "cut" | "none"     // How to handle end boundary
+    }
+    
+    Returns updated clip timestamps and metadata.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        data = request.json or {}
+        start_word_index = data.get('start_word_index')
+        end_word_index = data.get('end_word_index')
+        adjust_start = data.get('adjust_start', 'none')
+        adjust_end = data.get('adjust_end', 'none')
+        
+        # Validate required parameters
+        if start_word_index is None or end_word_index is None:
+            return jsonify({'error': 'start_word_index and end_word_index are required'}), 400
+        
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if clips exist
+        if 'clips' not in job_data or not job_data['clips']:
+            return jsonify({'error': 'No clips found for this job'}), 400
+        
+        # Validate clip index
+        clips = job_data['clips']
+        if clip_index < 0 or clip_index >= len(clips):
+            return jsonify({'error': 'Invalid clip index'}), 400
+        
+        # Get word transcript (cached or parse)
+        word_transcript = get_cached_word_transcript(job_id)
+        
+        if not word_transcript:
+            word_transcript = create_word_transcript_from_job(job_data)
+            cache_word_transcript(job_id, word_transcript)
+        
+        # Determine if we need partial words
+        include_partial_start = (adjust_start == 'cut')
+        include_partial_end = (adjust_end == 'cut')
+        
+        # Extend boundaries if requested
+        final_start_idx = start_word_index
+        final_end_idx = end_word_index
+        
+        if adjust_start == 'extend' and start_word_index > 0:
+            final_start_idx = start_word_index - 1
+        if adjust_end == 'extend' and end_word_index < len(word_transcript.words) - 1:
+            final_end_idx = end_word_index + 1
+        
+        # Update clip
+        editor = ClipWordEditor(word_transcript)
+        result = editor.update_clip_by_words(
+            clip_index=clip_index,
+            start_word_index=final_start_idx,
+            end_word_index=final_end_idx,
+            include_partial_start=include_partial_start,
+            include_partial_end=include_partial_end
+        )
+        
+        if not result.get('success'):
+            return jsonify(result), 400
+        
+        # Update clip in job data
+        clip = clips[clip_index]
+        clip['start_timestamp'] = result['formatted_start']
+        clip['end_timestamp'] = result['formatted_end']
+        clip['start_seconds'] = result['start_time']
+        clip['end_seconds'] = result['end_time']
+        clip['updatedAt'] = datetime.now().isoformat()
+        
+        # Save updated job
+        job_data['clips'] = clips
+        job_data['updatedAt'] = datetime.now().isoformat()
+        save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
+        
+        # Return updated clip data
+        return jsonify({
+            'success': True,
+            'jobId': job_id,
+            'clip_index': clip_index,
+            'clip': {
+                'start_timestamp': result['formatted_start'],
+                'end_timestamp': result['formatted_end'],
+                'start_seconds': result['start_time'],
+                'end_seconds': result['end_time'],
+                'duration': result['duration'],
+                'word_count': result['word_count'],
+                'text': result['text'],
+                'title_options': clip.get('title_options', {}),
+                'engaging_quote': clip.get('engaging_quote', ''),
+                'updatedAt': clip['updatedAt']
+            },
+            'words': result['words'],
+            'start_word_index': result['start_word_index'],
+            'end_word_index': result['end_word_index']
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] update_clip_words: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/job/<job_id>/word-search', methods=['GET', 'OPTIONS'])
+def search_words_in_transcript(job_id):
+    """Search for words in the transcript.
+    
+    Query params:
+    - q: Search query (required)
+    - limit: Max results (default: 10)
+    
+    Returns matching words with their timestamps.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify({'error': 'Search query (q) is required'}), 400
+        
+        limit = int(request.args.get('limit', 10))
+        
+        # Load job data
+        job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
+        if not job_data:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Get word transcript
+        word_transcript = get_cached_word_transcript(job_id)
+        
+        if not word_transcript:
+            word_transcript = create_word_transcript_from_job(job_data)
+            cache_word_transcript(job_id, word_transcript)
+        
+        # Search for matching words (case-insensitive)
+        query_lower = query.lower()
+        matches = []
+        
+        for word in word_transcript.words:
+            if query_lower in word.text.lower():
+                matches.append({
+                    'text': word.text,
+                    'start_time': word.start_time,
+                    'end_time': word.end_time,
+                    'index': word.index,
+                    'formatted_time': format_timestamp(word.start_time)
+                })
+                if len(matches) >= limit:
+                    break
+        
+        return jsonify({
+            'jobId': job_id,
+            'query': query,
+            'matches': matches,
+            'match_count': len(matches)
+        }), 200
+    
+    except Exception as e:
+        print(f"[ERROR] search_words_in_transcript: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 # ============================================================================
 # FRONTEND SERVING (Simple HTML Upload Form)

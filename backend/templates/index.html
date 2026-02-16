@@ -337,6 +337,85 @@
             50% { opacity: 0.6; }
         }
         
+        /* Transcript Editor Styles */
+        .transcript-editor {
+            background: rgba(10, 22, 40, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 16px;
+            line-height: 2;
+        }
+        
+        .transcript-word {
+            display: inline-block;
+            padding: 2px 4px;
+            margin: 1px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        
+        .transcript-word:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        
+        .transcript-word.selected {
+            background: rgba(255, 217, 61, 0.25) !important;
+            color: #FFD93D;
+            font-weight: 500;
+        }
+        
+        .transcript-word.dragging {
+            opacity: 0.7;
+        }
+        
+        .drag-handle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: ew-resize;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease;
+        }
+        
+        .drag-handle:hover {
+            transform: scale(1.2);
+        }
+        
+        .drag-handle.dragging {
+            transform: scale(1.3);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+        }
+        
+        .editor-help-text {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        
+        .editor-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: #94a3b8;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(148, 163, 184, 0.1);
+            border-color: rgba(148, 163, 184, 0.5);
+        }
+        
         .clips-section {
             margin-top: 40px;
             display: none;
@@ -577,25 +656,29 @@
 
     <!-- Transcript Editor Modal -->
     <div id="editorModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
             <div class="modal-header">
-                <h2>Edit Clip Timestamps</h2>
+                <h2>🎯 Fine Tune with Highlighter</h2>
                 <button class="modal-close" onclick="closeEditor()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="editor-clip-info">
                     <h3 id="editorClipTitle">Clip Title</h3>
                     <p id="editorClipTime">0:00 - 0:00</p>
+                    <p class="editor-help-text">💡 Click and drag to highlight words, or use the drag handles to adjust</p>
                 </div>
-                <div class="editor-transcript" id="editorTranscript">
-                    <!-- Transcript segments will be loaded here -->
+                <div class="editor-transcript" id="editorTranscript" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
+                    <!-- Transcript words will be loaded here -->
                 </div>
                 <div class="editor-controls">
                     <div class="time-inputs">
-                        <label>Start: <input type="text" id="editStartTime" value="0:00"></label>
-                        <label>End: <input type="text" id="editEndTime" value="0:00"></label>
+                        <label>Start: <input type="text" id="editStartTime" value="0:00" readonly></label>
+                        <label>End: <input type="text" id="editEndTime" value="0:00" readonly></label>
                     </div>
-                    <button class="btn" onclick="saveClipEdit()">Save Changes</button>
+                    <div class="editor-actions">
+                        <button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
+                        <button class="btn btn-primary" onclick="saveClipEdit()">Save Changes</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1179,6 +1262,10 @@
         let currentJobId = null;
         let currentTranscript = null;
         
+        // Word-level transcript editor instance
+        let transcriptEditor = null;
+        let currentEditorWords = [];
+        
         function openEditor(clipIndex, startTime, endTime, title, jobId) {
             currentClipIndex = clipIndex;
             currentJobId = jobId;
@@ -1188,58 +1275,91 @@
             document.getElementById('editEndTime').value = endTime;
             document.getElementById('editorModal').style.display = 'flex';
             
-            // Load transcript if available
-            loadTranscriptForEditor();
+            // Load word-level transcript
+            loadWordTranscript(startTime, endTime);
         }
         
         function closeEditor() {
             document.getElementById('editorModal').style.display = 'none';
             currentClipIndex = null;
+            if (transcriptEditor) {
+                transcriptEditor = null;
+            }
         }
         
-        async function loadTranscriptForEditor() {
+        async function loadWordTranscript(clipStartTime, clipEndTime) {
             const transcriptDiv = document.getElementById('editorTranscript');
-            transcriptDiv.innerHTML = '<p style="color: #94a3b8;">Loading transcript...</p>';
+            transcriptDiv.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 40px;">Loading transcript words...</p>';
             
             try {
-                // Fetch actual transcript from backend
-                const response = await fetch(`${API_URL}/api/job/${currentJobId}/full-transcript`);
+                // Fetch word-level transcript from backend
+                const response = await fetch(`${API_URL}/api/job/${currentJobId}/clip/${currentClipIndex}/words`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.segments && data.segments.length > 0) {
-                        currentTranscript = data;
-                        renderTranscript(data.segments);
+                    if (data.words && data.words.length > 0) {
+                        currentEditorWords = data.words;
+                        
+                        // Find word indices for the current clip
+                        const startSeconds = parseTimestampToSeconds(clipStartTime);
+                        const endSeconds = parseTimestampToSeconds(clipEndTime);
+                        
+                        let startIndex = 0;
+                        let endIndex = data.words.length - 1;
+                        
+                        data.words.forEach((word, i) => {
+                            if (word.start <= startSeconds + 0.5) startIndex = i;
+                            if (word.end <= endSeconds) endIndex = i;
+                        });
+                        
+                        // Initialize the word-level editor
+                        transcriptEditor = new TranscriptEditor({
+                            container: transcriptDiv,
+                            onSelectionChange: (selection) => {
+                                // Update time inputs when selection changes
+                                document.getElementById('editStartTime').value = formatSecondsToTimestamp(selection.startTime);
+                                document.getElementById('editEndTime').value = formatSecondsToTimestamp(selection.endTime);
+                                document.getElementById('editorClipTime').textContent = 
+                                    `${formatSecondsToTimestamp(selection.startTime)} - ${formatSecondsToTimestamp(selection.endTime)}`;
+                            }
+                        });
+                        
+                        transcriptEditor.render(data.words, startIndex, endIndex);
+                        
+                        // Scroll to selection after a short delay
+                        setTimeout(() => {
+                            transcriptEditor.scrollToSelection();
+                        }, 100);
+                        
                         return;
                     }
                 }
             } catch (err) {
-                console.error('Failed to load transcript:', err);
+                console.error('Failed to load word transcript:', err);
             }
             
-            // Fallback: show placeholder
+            // Fallback: show message
             transcriptDiv.innerHTML = `
-                <div class="transcript-segment selected" onclick="selectSegment(this)">
-                    <strong>[00:00]</strong> Transcript loading failed. Use time inputs above to manually adjust.
+                <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                    <p>Word-level transcript not available for this clip.</p>
+                    <p>Use the Save Changes button to apply timestamp edits.</p>
                 </div>
             `;
         }
         
-        function renderTranscript(segments) {
-            const transcriptDiv = document.getElementById('editorTranscript');
-            transcriptDiv.innerHTML = '';
-            
-            segments.forEach((segment, i) => {
-                const div = document.createElement('div');
-                div.className = 'transcript-segment';
-                div.onclick = () => selectSegment(div, segment.start, segment.end);
-                div.innerHTML = `<strong>[${segment.start}]</strong> ${segment.text}`;
-                transcriptDiv.appendChild(div);
-            });
+        function parseTimestampToSeconds(timestamp) {
+            const parts = timestamp.split(':').map(Number);
+            if (parts.length === 3) {
+                return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (parts.length === 2) {
+                return parts[0] * 60 + parts[1];
+            }
+            return parts[0] || 0;
         }
         
-        function selectSegment(element) {
-            document.querySelectorAll('.transcript-segment').forEach(el => el.classList.remove('selected'));
-            element.classList.add('selected');
+        function formatSecondsToTimestamp(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
         
         async function downloadClip(clipIndex, jobId) {
@@ -1304,15 +1424,31 @@
             const endTime = document.getElementById('editEndTime').value;
             
             try {
-                const response = await fetch(`${API_URL}/api/job/${currentJobId}/save-clip`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        clipIndex: currentClipIndex,
-                        startTimestamp: startTime,
-                        endTimestamp: endTime
-                    })
-                });
+                let response;
+                
+                // If word-level editor is active, use word-based API
+                if (transcriptEditor && currentEditorWords.length > 0) {
+                    const selection = transcriptEditor.getSelection();
+                    response = await fetch(`${API_URL}/api/job/${currentJobId}/clip/${currentClipIndex}/update-words`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            start_word_index: selection.startWordIndex,
+                            end_word_index: selection.endWordIndex
+                        })
+                    });
+                } else {
+                    // Fallback to timestamp-based API
+                    response = await fetch(`${API_URL}/api/job/${currentJobId}/save-clip`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clipIndex: currentClipIndex,
+                            startTimestamp: startTime,
+                            endTimestamp: endTime
+                        })
+                    });
+                }
                 
                 if (response.ok) {
                     showStatus(`✅ Clip ${currentClipIndex + 1} updated: ${startTime} - ${endTime}`, 'success');
@@ -1390,5 +1526,6 @@
             // Could auto-check here if desired
         });
     </script>
+    <script src="/static/transcript-editor.js"></script>
 </body>
 </html>
