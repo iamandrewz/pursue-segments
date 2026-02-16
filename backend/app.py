@@ -922,11 +922,14 @@ def transcribe_with_whisper(audio_path, video_id):
                 model="whisper-1",
                 file=audio_file,
                 response_format="verbose_json",
-                timestamp_granularities=["segment"]
+                timestamp_granularities=["word"]  # WORD-LEVEL PRECISION
             )
 
         segments = []
+        words = []
         full_text = ""
+        
+        # Process segments
         for segment in response.segments:
             start_time = format_seconds_to_timestamp(segment.start)
             end_time = format_seconds_to_timestamp(segment.end)
@@ -936,9 +939,21 @@ def transcribe_with_whisper(audio_path, video_id):
                 'start_seconds': segment.start, 'end_seconds': segment.end
             })
             full_text += f"[{start_time}] {text}\n"
+        
+        # Process words with exact timestamps
+        if hasattr(response, 'words') and response.words:
+            for idx, word in enumerate(response.words):
+                words.append({
+                    'text': word.word.strip(),
+                    'start': word.start,
+                    'end': word.end,
+                    'index': idx
+                })
+            print(f"[WHISPER] Word-level timestamps: {len(words)} words")
 
         transcript_data = {
             'videoId': video_id, 'segments': segments, 'fullText': full_text,
+            'words': words,  # Store word-level data
             'duration': format_seconds_to_timestamp(response.duration),
             'createdAt': datetime.now().isoformat()
         }
@@ -951,7 +966,9 @@ def transcribe_with_whisper(audio_path, video_id):
     print(f"[WHISPER] Split into {len(chunk_files)} chunks")
 
     all_segments = []
+    all_words = []
     full_text = ""
+    word_index_offset = 0
 
     for idx, (chunk_path, chunk_offset) in enumerate(chunk_files):
         print(f"[WHISPER] Transcribing chunk {idx+1}/{len(chunk_files)}...")
@@ -961,7 +978,7 @@ def transcribe_with_whisper(audio_path, video_id):
                 model="whisper-1",
                 file=audio_file,
                 response_format="verbose_json",
-                timestamp_granularities=["segment"]
+                timestamp_granularities=["word"]  # WORD-LEVEL PRECISION
             )
 
         for segment in response.segments:
@@ -978,6 +995,19 @@ def transcribe_with_whisper(audio_path, video_id):
                 'start_seconds': adjusted_start, 'end_seconds': adjusted_end
             })
             full_text += f"[{start_time}] {text}\n"
+        
+        # Process words with adjusted timestamps
+        if hasattr(response, 'words') and response.words:
+            for word in response.words:
+                adjusted_word_start = word.start + chunk_offset
+                adjusted_word_end = word.end + chunk_offset
+                all_words.append({
+                    'text': word.word.strip(),
+                    'start': adjusted_word_start,
+                    'end': adjusted_word_end,
+                    'index': word_index_offset
+                })
+                word_index_offset += 1
 
         # Clean up chunk file
         try:
@@ -996,12 +1026,13 @@ def transcribe_with_whisper(audio_path, video_id):
         'videoId': video_id,
         'segments': all_segments,
         'fullText': full_text,
+        'words': all_words,  # Store word-level data
         'duration': format_seconds_to_timestamp(total_duration),
         'createdAt': datetime.now().isoformat()
     }
 
     save_data(f"transcript_{video_id}.json", transcript_data, TRANSCRIPTS_DIR)
-    print(f"[WHISPER] Transcription complete: {len(all_segments)} segments")
+    print(f"[WHISPER] Transcription complete: {len(all_segments)} segments, {len(all_words)} words")
     return transcript_data
 
 def analyze_clips_with_gemini(transcript_text, target_audience_profile):
@@ -2128,10 +2159,8 @@ def get_clip_words(job_id, clip_index):
     """Get word-level transcript for editing a clip.
     
     Returns FULL transcript with segment boundaries marked.
-    This allows users to see context before/after the segment.
+    Uses ACTUAL Whisper word-level timestamps (not estimates).
     Format: [{text: "word", start: 0.0, end: 0.5, index: 0}, ...]
-    
-    Uses simple estimation (~0.3 seconds per word) from plain text transcript.
     """
     if request.method == 'OPTIONS':
         return '', 204
@@ -2155,28 +2184,31 @@ def get_clip_words(job_id, clip_index):
         segment_start = parse_timestamp_to_seconds(clip.get('start_timestamp', '00:00'))
         segment_end = parse_timestamp_to_seconds(clip.get('end_timestamp', '00:00'))
         
-        # Get FULL transcript text (not just clip portion)
-        full_transcript_text = ''
-        max_end_time = 0
-        if 'transcript' in job_data:
-            segments = job_data['transcript'].get('segments', [])
+        # Get ACTUAL word-level data from Whisper transcription
+        transcript_data = job_data.get('transcript', {})
+        words = transcript_data.get('words', [])
+        
+        # Fallback to estimated words if no Whisper word data available
+        if not words:
+            print(f"[WARN] No Whisper word data, falling back to estimation")
+            full_transcript_text = ''
+            max_end_time = 0
+            segments = transcript_data.get('segments', [])
             for seg in segments:
                 full_transcript_text += seg.get('text', '') + ' '
-                # Track the actual end time of the transcript
                 seg_end = seg.get('end_seconds', 0)
                 if seg_end > max_end_time:
                     max_end_time = seg_end
-        
-        # Fallback to clip excerpt if no full transcript
-        if not full_transcript_text.strip():
-            full_transcript_text = clip.get('transcript_excerpt', '')
-            max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
-        
-        # Parse FULL transcript into words with estimated timestamps
-        # Use actual transcript duration, not default
-        total_duration = job_data.get('duration_seconds') or max_end_time or 3600
-        words = parse_transcript_to_words(full_transcript_text, '00:00', 
-                                         format_seconds_to_timestamp(total_duration))
+            
+            if not full_transcript_text.strip():
+                full_transcript_text = clip.get('transcript_excerpt', '')
+                max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
+            
+            total_duration = job_data.get('duration_seconds') or max_end_time or 3600
+            words = parse_transcript_to_words(full_transcript_text, '00:00', 
+                                             format_seconds_to_timestamp(total_duration))
+        else:
+            print(f"[INFO] Using Whisper word-level timestamps: {len(words)} words")
         
         # Find segment boundaries in word list
         segment_start_index = 0
@@ -2197,7 +2229,8 @@ def get_clip_words(job_id, clip_index):
             'wordCount': len(words),
             'segmentStartIndex': segment_start_index,
             'segmentEndIndex': segment_end_index,
-            'isFullTranscript': True
+            'isFullTranscript': True,
+            'isWordLevel': transcript_data.get('words') is not None
         }), 200
     
     except Exception as e:
@@ -2258,25 +2291,31 @@ def update_clip_words(job_id, clip_index):
         
         clip = clips[clip_index]
         
-        # Get FULL transcript text (not just clip portion) - matches get_clip_words
-        full_transcript_text = ''
-        max_end_time = 0
-        if 'transcript' in job_data:
-            segments = job_data['transcript'].get('segments', [])
+        # Get ACTUAL word-level data from Whisper transcription
+        transcript_data = job_data.get('transcript', {})
+        words = transcript_data.get('words', [])
+        
+        # Fallback to estimated words if no Whisper word data
+        if not words:
+            print(f"[WARN] No Whisper word data in save, falling back to estimation")
+            full_transcript_text = ''
+            max_end_time = 0
+            segments = transcript_data.get('segments', [])
             for seg in segments:
                 full_transcript_text += seg.get('text', '') + ' '
                 seg_end = seg.get('end_seconds', 0)
                 if seg_end > max_end_time:
                     max_end_time = seg_end
-        
-        if not full_transcript_text.strip():
-            full_transcript_text = clip.get('transcript_excerpt', '')
-            max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
-        
-        # Parse FULL transcript into words - matches get_clip_words
-        total_duration = job_data.get('duration_seconds') or max_end_time or 3600
-        words = parse_transcript_to_words(full_transcript_text, '00:00',
-                                         format_seconds_to_timestamp(total_duration))
+            
+            if not full_transcript_text.strip():
+                full_transcript_text = clip.get('transcript_excerpt', '')
+                max_end_time = parse_timestamp_to_seconds(clip.get('end_timestamp', '01:00'))
+            
+            total_duration = job_data.get('duration_seconds') or max_end_time or 3600
+            words = parse_transcript_to_words(full_transcript_text, '00:00',
+                                             format_seconds_to_timestamp(total_duration))
+        else:
+            print(f"[INFO] Save using Whisper word-level timestamps: {len(words)} words")
         
         if not words:
             return jsonify({'error': 'No words found in transcript'}), 400
