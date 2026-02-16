@@ -705,11 +705,12 @@
                 </div>
                 
                 <!-- Live Transcript Preview -->
-                <div class="preview-section">
-                    <h4>📝 Transcript Preview</h4>
-                    <div class="transcript-preview" id="transcriptPreview">
-                        <p style="color: #94a3b8; text-align: center; padding: 40px;">Loading preview...</p>
+                <div class="preview-section" style="background: rgba(15, 23, 42, 0.6); border: 2px solid #FFD93D; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                    <h4 style="color: #FFD93D; margin-bottom: 15px; font-size: 16px;">📝 You Will Download This Exact Text:</h4>
+                    <div class="transcript-preview" id="transcriptPreview" style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 15px; min-height: 60px; font-size: 15px; line-height: 1.6; color: #e2e8f0;">
+                        <p style="color: #94a3b8; text-align: center; padding: 20px;">Adjust times to see preview...</p>
                     </div>
+                    <p style="color: #64748b; font-size: 12px; margin-top: 10px; text-align: center;">This is the EXACT transcript that will be in your downloaded segment</p>
                 </div>
                 
                 <!-- Full Transcript with Segment Highlights -->
@@ -1634,23 +1635,35 @@
             const previewDiv = document.getElementById('transcriptPreview');
             
             if (whisperSegments.length === 0) {
+                previewDiv.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Loading segment data...</p>';
                 return;
             }
             
             // Find all text within the selected time range
             let previewText = '';
+            let includedSegments = 0;
             whisperSegments.forEach(seg => {
+                // Segment overlaps with selection if:
+                // seg.start < clipEnd AND seg.end > clipStart
                 if (seg.start < currentClipEnd && seg.end > currentClipStart) {
                     previewText += seg.text + ' ';
+                    includedSegments++;
                 }
             });
             
             previewText = previewText.trim();
             
             if (previewText) {
-                previewDiv.innerHTML = `<span class="preview-text">"${previewText}"</span>`;
+                previewDiv.innerHTML = `
+                    <div style="font-size: 16px; line-height: 1.7; color: #f1f5f9;">
+                        "${previewText}"
+                    </div>
+                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,217,61,0.3); color: #FFD93D; font-size: 12px;">
+                        ✓ ${includedSegments} segment(s) will be included in your download
+                    </div>
+                `;
             } else {
-                previewDiv.innerHTML = '<span class="preview-empty">No transcript text in selected range</span>';
+                previewDiv.innerHTML = '<span style="color: #ef4444; font-style: italic;">⚠️ No transcript text in selected range - adjust times</span>';
             }
         }
         
