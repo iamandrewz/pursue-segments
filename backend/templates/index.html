@@ -1273,13 +1273,19 @@
                 a.href = url;
                 a.download = filename;
                 document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
                 
-                // Restore button, hide loading
-                if (btn) btn.style.display = 'inline-block';
-                if (status) status.style.display = 'none';
+                // Start download
+                a.click();
+                
+                // Wait a moment for download to start, then cleanup
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    // Restore button, hide loading AFTER download starts
+                    if (btn) btn.style.display = 'inline-block';
+                    if (status) status.style.display = 'none';
+                }, 1000);
                 
                 showStatus(`✅ Clip ${clipIndex + 1} downloaded!`, 'success');
             } catch (err) {
