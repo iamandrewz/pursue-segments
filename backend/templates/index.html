@@ -307,6 +307,36 @@
             color: #c084fc;
         }
         
+        /* Download loading indicator */
+        .dl-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #818cf8;
+            font-size: 14px;
+            font-weight: 500;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        .spinner {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
         .clips-section {
             margin-top: 40px;
             display: none;
@@ -1128,7 +1158,10 @@
                             <div class="clip-why"><strong>Why it works:</strong> ${clip.why_it_works}</div>
                             <div class="clip-actions">
                                 <button class="btn btn-small" onclick="openEditor(${i}, '${clip.start_timestamp}', '${clip.end_timestamp}', '${title.replace(/'/g, "\\'")}', '${data.jobId}')">Edit Timestamps</button>
-                                <button class="btn btn-small btn-primary" onclick="downloadClip(${i}, '${data.jobId}')">⬇ Download Clip</button>
+                                <button class="btn btn-small btn-primary" id="dl-btn-${i}" onclick="downloadClip(${i}, '${data.jobId}')">⬇ Download Clip</button>
+                                <span id="dl-status-${i}" class="dl-loading" style="display:none;">
+                                    <span class="spinner">⏳</span> Preparing...
+                                </span>
                             </div>
                         </div>
                     `;
@@ -1210,8 +1243,13 @@
         }
         
         async function downloadClip(clipIndex, jobId) {
+            const btn = document.getElementById(`dl-btn-${clipIndex}`);
+            const status = document.getElementById(`dl-status-${clipIndex}`);
+            
             try {
-                showStatus(`⏳ Preparing your download... extracting clip ${clipIndex + 1} from video (this may take 10-30 seconds)`, 'processing');
+                // Show loading state on the button
+                if (btn) btn.style.display = 'none';
+                if (status) status.style.display = 'inline-block';
                 
                 const response = await fetch(`${API_URL}/api/job/${jobId}/clip/${clipIndex}/download`);
                 
@@ -1239,9 +1277,18 @@
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
                 
+                // Restore button, hide loading
+                if (btn) btn.style.display = 'inline-block';
+                if (status) status.style.display = 'none';
+                
                 showStatus(`✅ Clip ${clipIndex + 1} downloaded!`, 'success');
             } catch (err) {
                 console.error('Download error:', err);
+                
+                // Restore button, hide loading on error
+                if (btn) btn.style.display = 'inline-block';
+                if (status) status.style.display = 'none';
+                
                 showStatus(`❌ Download failed: ${err.message}`, 'error');
             }
         }

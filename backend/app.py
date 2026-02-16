@@ -1889,11 +1889,14 @@ def download_clip_video(job_id, clip_index):
         clips_dir = os.path.join(DATA_DIR, 'clips')
         os.makedirs(clips_dir, exist_ok=True)
 
-        # Generate output filename
+        # Generate output filename - INCLUDE TIMESTAMPS so edits create new files
         safe_title = clip.get('title_options', {}).get('punchy', f'clip_{clip_index}')
         safe_title = "".join(c for c in safe_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_title = safe_title.replace(' ', '_')[:30]
-        output_filename = f"{job_id}_{clip_index}_{safe_title}.mp4"
+        safe_title = safe_title.replace(' ', '_')[:20]
+        # Include timestamps in filename so edited clips are different files
+        start_safe = start_ts.replace(':', '')
+        end_safe = end_ts.replace(':', '')
+        output_filename = f"{job_id}_{clip_index}_{start_safe}_{end_safe}_{safe_title}.mp4"
         output_path = os.path.join(clips_dir, output_filename)
 
         # Check if already extracted and ready (must have content)
