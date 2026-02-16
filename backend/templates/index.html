@@ -1679,8 +1679,9 @@
             let html = '';
             whisperSegments.forEach((seg, i) => {
                 const timeStr = formatSecondsToTimestamp(seg.start).substring(0, 7);
+                const safeText = (seg.text || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `<span class="segment" data-index="${i}" onclick="seekToSegment(${seg.start})">
-                    <span class="segment-time">[${timeStr}]</span>${seg.text}
+                    <span class="segment-time">[${timeStr}]</span>${safeText}
                 </span> `;
             });
             
