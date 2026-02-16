@@ -2125,9 +2125,10 @@ def get_transcript_words(job_id):
 
 @app.route('/api/job/<job_id>/clip/<int:clip_index>/words', methods=['GET', 'OPTIONS'])
 def get_clip_words(job_id, clip_index):
-    """Get word-level transcript for a specific clip.
+    """Get word-level transcript for editing a clip.
     
-    Returns individual words with estimated timestamps based on clip duration.
+    Returns FULL transcript with segment boundaries marked.
+    This allows users to see context before/after the segment.
     Format: [{text: "word", start: 0.0, end: 0.5, index: 0}, ...]
     
     Uses simple estimation (~0.3 seconds per word) from plain text transcript.
@@ -2151,38 +2152,46 @@ def get_clip_words(job_id, clip_index):
             return jsonify({'error': 'Invalid clip index'}), 400
         
         clip = clips[clip_index]
-        start_timestamp = clip.get('start_timestamp', '00:00')
-        end_timestamp = clip.get('end_timestamp', '00:00')
+        segment_start = parse_timestamp_to_seconds(clip.get('start_timestamp', '00:00'))
+        segment_end = parse_timestamp_to_seconds(clip.get('end_timestamp', '00:00'))
         
-        # Get transcript text for this clip
-        transcript_text = ''
+        # Get FULL transcript text (not just clip portion)
+        full_transcript_text = ''
         if 'transcript' in job_data:
             segments = job_data['transcript'].get('segments', [])
-            start_sec = parse_timestamp_to_seconds(start_timestamp)
-            end_sec = parse_timestamp_to_seconds(end_timestamp)
-            
-            # Extract segments within clip range
             for seg in segments:
-                seg_start = seg.get('start_seconds', 0)
-                seg_end = seg.get('end_seconds', 0)
-                # Include segments that overlap with clip range
-                if seg_start < end_sec and seg_end > start_sec:
-                    transcript_text += seg.get('text', '') + ' '
+                full_transcript_text += seg.get('text', '') + ' '
         
-        # Fallback to transcript excerpt if no segments
-        if not transcript_text.strip():
-            transcript_text = clip.get('transcript_excerpt', '')
+        # Fallback to clip excerpt if no full transcript
+        if not full_transcript_text.strip():
+            full_transcript_text = clip.get('transcript_excerpt', '')
         
-        # Parse transcript into words with estimated timestamps
-        words = parse_transcript_to_words(transcript_text, start_timestamp, end_timestamp)
+        # Parse FULL transcript into words with estimated timestamps
+        # Estimate from 00:00 to end of transcript
+        total_duration = job_data.get('duration_seconds', 3600)  # Default 1 hour
+        words = parse_transcript_to_words(full_transcript_text, '00:00', 
+                                         format_seconds_to_timestamp(total_duration))
+        
+        # Find segment boundaries in word list
+        segment_start_index = 0
+        segment_end_index = len(words) - 1
+        
+        for i, word in enumerate(words):
+            if word['start'] <= segment_start + 0.5:
+                segment_start_index = i
+            if word['end'] <= segment_end:
+                segment_end_index = i
         
         return jsonify({
             'jobId': job_id,
             'clipIndex': clip_index,
-            'startTimestamp': start_timestamp,
-            'endTimestamp': end_timestamp,
+            'startTimestamp': clip.get('start_timestamp', '00:00'),
+            'endTimestamp': clip.get('end_timestamp', '00:00'),
             'words': words,
-            'wordCount': len(words)
+            'wordCount': len(words),
+            'segmentStartIndex': segment_start_index,
+            'segmentEndIndex': segment_end_index,
+            'isFullTranscript': True
         }), 200
     
     except Exception as e:
@@ -2280,6 +2289,15 @@ def update_clip_words(job_id, clip_index):
         start_sec = parse_timestamp_to_seconds(new_start_timestamp)
         end_sec = parse_timestamp_to_seconds(new_end_timestamp)
         duration_minutes = round((end_sec - start_sec) / 60, 2)
+        
+        # Enforce 25-minute maximum segment length
+        MAX_SEGMENT_MINUTES = 25
+        if duration_minutes > MAX_SEGMENT_MINUTES:
+            return jsonify({
+                'error': f'Segment exceeds maximum length of {MAX_SEGMENT_MINUTES} minutes',
+                'requestedDuration': duration_minutes,
+                'maxAllowed': MAX_SEGMENT_MINUTES
+            }), 400
         
         # Update clip in job data
         clip['start_timestamp'] = new_start_timestamp
