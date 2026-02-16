@@ -1901,13 +1901,21 @@ def download_clip_video(job_id, clip_index):
             output_path
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # Use DEVNULL to avoid memory issues - ffmpeg outputs progress to stderr which can be huge
+        # CRITICAL FIX: Never use stderr=PIPE - it buffers ALL of ffmpeg's output into memory.
+        # ffmpeg outputs massive progress info to stderr which can exceed 400MB on longer videos.
+        # This was causing the 512MB OOM crash. Use DEVNULL to discard all output.
+        result = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=300
+        )
         print(f"[CLIP] ffmpeg returncode: {result.returncode}")
-        if result.stderr:
-            print(f"[CLIP] ffmpeg stderr: {result.stderr[:500]}")
 
         if result.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
-            return jsonify({'error': 'Extraction failed', 'details': result.stderr[:200]}), 500
+            return jsonify({'error': 'Extraction failed', 'details': 'ffmpeg process failed'}), 500
 
         return Response(
             stream_file(output_path),
