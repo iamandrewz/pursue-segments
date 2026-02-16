@@ -921,15 +921,15 @@ def transcribe_with_whisper(audio_path, video_id):
             response = openai_client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                response_format="verbose_json",
-                timestamp_granularities=["word"]  # WORD-LEVEL PRECISION
+                response_format="verbose_json"
             )
 
         segments = []
         words = []
         full_text = ""
         
-        # Process segments
+        # Process segments and extract word-level timestamps
+        word_idx = 0
         for segment in response.segments:
             start_time = format_seconds_to_timestamp(segment.start)
             end_time = format_seconds_to_timestamp(segment.end)
@@ -939,16 +939,19 @@ def transcribe_with_whisper(audio_path, video_id):
                 'start_seconds': segment.start, 'end_seconds': segment.end
             })
             full_text += f"[{start_time}] {text}\n"
+            
+            # Extract words from segment (OpenAI Whisper format)
+            if hasattr(segment, 'words') and segment.words:
+                for word in segment.words:
+                    words.append({
+                        'text': word.word.strip(),
+                        'start': word.start,
+                        'end': word.end,
+                        'index': word_idx
+                    })
+                    word_idx += 1
         
-        # Process words with exact timestamps
-        if hasattr(response, 'words') and response.words:
-            for idx, word in enumerate(response.words):
-                words.append({
-                    'text': word.word.strip(),
-                    'start': word.start,
-                    'end': word.end,
-                    'index': idx
-                })
+        if words:
             print(f"[WHISPER] Word-level timestamps: {len(words)} words")
 
         transcript_data = {
@@ -977,8 +980,7 @@ def transcribe_with_whisper(audio_path, video_id):
             response = openai_client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                response_format="verbose_json",
-                timestamp_granularities=["word"]  # WORD-LEVEL PRECISION
+                response_format="verbose_json"
             )
 
         for segment in response.segments:
@@ -995,19 +997,19 @@ def transcribe_with_whisper(audio_path, video_id):
                 'start_seconds': adjusted_start, 'end_seconds': adjusted_end
             })
             full_text += f"[{start_time}] {text}\n"
-        
-        # Process words with adjusted timestamps
-        if hasattr(response, 'words') and response.words:
-            for word in response.words:
-                adjusted_word_start = word.start + chunk_offset
-                adjusted_word_end = word.end + chunk_offset
-                all_words.append({
-                    'text': word.word.strip(),
-                    'start': adjusted_word_start,
-                    'end': adjusted_word_end,
-                    'index': word_index_offset
-                })
-                word_index_offset += 1
+            
+            # Extract words from segment with adjusted timestamps
+            if hasattr(segment, 'words') and segment.words:
+                for word in segment.words:
+                    adjusted_word_start = word.start + chunk_offset
+                    adjusted_word_end = word.end + chunk_offset
+                    all_words.append({
+                        'text': word.word.strip(),
+                        'start': adjusted_word_start,
+                        'end': adjusted_word_end,
+                        'index': word_index_offset
+                    })
+                    word_index_offset += 1
 
         # Clean up chunk file
         try:
