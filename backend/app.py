@@ -2198,27 +2198,30 @@ def update_clip_words(job_id, clip_index):
     
     Request body:
     {
-        "start_word_index": 10,      // Starting word index
-        "end_word_index": 50,       // Ending word index
-        "adjust_start": "extend" | "cut" | "none",  // How to handle start boundary
-        "adjust_end": "extend" | "cut" | "none"     // How to handle end boundary
+        "startWordIndex": 0,    // Starting word index
+        "endWordIndex": 10      // Ending word index
     }
     
-    Returns updated clip timestamps and metadata.
+    Returns updated clip timestamps based on word boundaries.
+    Uses simple estimation (~0.3 seconds per word).
     """
     if request.method == 'OPTIONS':
         return '', 204
     
     try:
         data = request.json or {}
-        start_word_index = data.get('start_word_index')
-        end_word_index = data.get('end_word_index')
-        adjust_start = data.get('adjust_start', 'none')
-        adjust_end = data.get('adjust_end', 'none')
+        start_word_index = data.get('startWordIndex')
+        end_word_index = data.get('endWordIndex')
         
         # Validate required parameters
         if start_word_index is None or end_word_index is None:
-            return jsonify({'error': 'start_word_index and end_word_index are required'}), 400
+            return jsonify({'error': 'startWordIndex and endWordIndex are required'}), 400
+        
+        if start_word_index < 0 or end_word_index < 0:
+            return jsonify({'error': 'Word indices must be non-negative'}), 400
+        
+        if start_word_index > end_word_index:
+            return jsonify({'error': 'startWordIndex must be <= endWordIndex'}), 400
         
         # Load job data
         job_data = load_data(f"job_{job_id}.json", JOBS_DIR)
@@ -2227,52 +2230,61 @@ def update_clip_words(job_id, clip_index):
         
         # Check if clips exist
         if 'clips' not in job_data or not job_data['clips']:
-            return jsonify({'error': 'No clips found for this job'}), 400
+            return jsonify({'error': 'No clips found for this job'}), 404
         
         # Validate clip index
         clips = job_data['clips']
         if clip_index < 0 or clip_index >= len(clips):
             return jsonify({'error': 'Invalid clip index'}), 400
         
-        # Get word transcript (cached or parse)
-        word_transcript = get_cached_word_transcript(job_id)
+        clip = clips[clip_index]
+        start_timestamp = clip.get('start_timestamp', '00:00')
+        end_timestamp = clip.get('end_timestamp', '00:00')
         
-        if not word_transcript:
-            word_transcript = create_word_transcript_from_job(job_data)
-            cache_word_transcript(job_id, word_transcript)
+        # Get transcript text for this clip
+        transcript_text = ''
+        if 'transcript' in job_data:
+            segments = job_data['transcript'].get('segments', [])
+            start_sec = parse_timestamp_to_seconds(start_timestamp)
+            end_sec = parse_timestamp_to_seconds(end_timestamp)
+            
+            for seg in segments:
+                seg_start = seg.get('start_seconds', 0)
+                seg_end = seg.get('end_seconds', 0)
+                if seg_start < end_sec and seg_end > start_sec:
+                    transcript_text += seg.get('text', '') + ' '
         
-        # Determine if we need partial words
-        include_partial_start = (adjust_start == 'cut')
-        include_partial_end = (adjust_end == 'cut')
+        if not transcript_text.strip():
+            transcript_text = clip.get('transcript_excerpt', '')
         
-        # Extend boundaries if requested
-        final_start_idx = start_word_index
-        final_end_idx = end_word_index
+        # Parse words using simple estimation
+        words = parse_transcript_to_words(transcript_text, start_timestamp, end_timestamp)
         
-        if adjust_start == 'extend' and start_word_index > 0:
-            final_start_idx = start_word_index - 1
-        if adjust_end == 'extend' and end_word_index < len(word_transcript.words) - 1:
-            final_end_idx = end_word_index + 1
+        if not words:
+            return jsonify({'error': 'No words found in transcript'}), 400
         
-        # Update clip
-        editor = ClipWordEditor(word_transcript)
-        result = editor.update_clip_by_words(
-            clip_index=clip_index,
-            start_word_index=final_start_idx,
-            end_word_index=final_end_idx,
-            include_partial_start=include_partial_start,
-            include_partial_end=include_partial_end
-        )
+        # Validate indices are within range
+        if start_word_index >= len(words):
+            return jsonify({'error': f'startWordIndex out of range (max: {len(words)-1})'}), 400
+        if end_word_index >= len(words):
+            return jsonify({'error': f'endWordIndex out of range (max: {len(words)-1})'}), 400
         
-        if not result.get('success'):
-            return jsonify(result), 400
+        # Get new timestamps based on word indices
+        start_word = words[start_word_index]
+        end_word = words[end_word_index]
+        
+        new_start_timestamp = format_seconds_to_timestamp(start_word['start'])
+        new_end_timestamp = format_seconds_to_timestamp(end_word['end'])
+        
+        # Calculate new duration
+        start_sec = parse_timestamp_to_seconds(new_start_timestamp)
+        end_sec = parse_timestamp_to_seconds(new_end_timestamp)
+        duration_minutes = round((end_sec - start_sec) / 60, 2)
         
         # Update clip in job data
-        clip = clips[clip_index]
-        clip['start_timestamp'] = result['formatted_start']
-        clip['end_timestamp'] = result['formatted_end']
-        clip['start_seconds'] = result['start_time']
-        clip['end_seconds'] = result['end_time']
+        clip['start_timestamp'] = new_start_timestamp
+        clip['end_timestamp'] = new_end_timestamp
+        clip['duration_minutes'] = duration_minutes
         clip['updatedAt'] = datetime.now().isoformat()
         
         # Save updated job
@@ -2280,26 +2292,18 @@ def update_clip_words(job_id, clip_index):
         job_data['updatedAt'] = datetime.now().isoformat()
         save_data(f"job_{job_id}.json", job_data, JOBS_DIR)
         
-        # Return updated clip data
         return jsonify({
             'success': True,
             'jobId': job_id,
-            'clip_index': clip_index,
-            'clip': {
-                'start_timestamp': result['formatted_start'],
-                'end_timestamp': result['formatted_end'],
-                'start_seconds': result['start_time'],
-                'end_seconds': result['end_time'],
-                'duration': result['duration'],
-                'word_count': result['word_count'],
-                'text': result['text'],
-                'title_options': clip.get('title_options', {}),
-                'engaging_quote': clip.get('engaging_quote', ''),
-                'updatedAt': clip['updatedAt']
-            },
-            'words': result['words'],
-            'start_word_index': result['start_word_index'],
-            'end_word_index': result['end_word_index']
+            'clipIndex': clip_index,
+            'startWordIndex': start_word_index,
+            'endWordIndex': end_word_index,
+            'startTimestamp': new_start_timestamp,
+            'endTimestamp': new_end_timestamp,
+            'durationMinutes': duration_minutes,
+            'startWord': start_word,
+            'endWord': end_word,
+            'message': 'Clip updated successfully based on word boundaries'
         }), 200
     
     except Exception as e:
