@@ -657,31 +657,71 @@
         </div>
     </div>
 
-    <!-- Transcript Editor Modal -->
+    <!-- Time-Based Transcript Editor Modal -->
     <div id="editorModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
+        <div class="modal-content" style="max-width: 950px; max-height: 90vh;">
             <div class="modal-header">
-                <h2>🎯 Fine Tune with Highlighter</h2>
+                <h2>🎯 Fine Tune Clip</h2>
                 <button class="modal-close" onclick="closeEditor()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="editor-clip-info">
                     <h3 id="editorClipTitle">Clip Title</h3>
-                    <p id="editorClipTime">0:00 - 0:00</p>
-                    <p class="editor-help-text">💡 Click and drag to highlight words, or use the drag handles to adjust</p>
+                    <p class="editor-help-text">💡 Use the time controls below to adjust your clip. The preview shows exactly what will be downloaded.</p>
                 </div>
-                <div class="editor-transcript" id="editorTranscript" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
-                    <!-- Transcript words will be loaded here -->
+                
+                <!-- Time Controls with ±0.1s buttons -->
+                <div class="time-controls">
+                    <div class="time-input-group">
+                        <label>Start Time</label>
+                        <div class="time-input-row">
+                            <button class="time-btn" onclick="adjustTime('start', -1.0)">-1.0s</button>
+                            <button class="time-btn small" onclick="adjustTime('start', -0.1)">-0.1s</button>
+                            <input type="text" id="editStartTime" class="time-display" value="0:00.0" readonly>
+                            <button class="time-btn small" onclick="adjustTime('start', 0.1)">+0.1s</button>
+                            <button class="time-btn" onclick="adjustTime('start', 1.0)">+1.0s</button>
+                        </div>
+                    </div>
+                    <div class="time-input-group">
+                        <label>End Time</label>
+                        <div class="time-input-row">
+                            <button class="time-btn" onclick="adjustTime('end', -1.0)">-1.0s</button>
+                            <button class="time-btn small" onclick="adjustTime('end', -0.1)">-0.1s</button>
+                            <input type="text" id="editEndTime" class="time-display" value="0:00.0" readonly>
+                            <button class="time-btn small" onclick="adjustTime('end', 0.1)">+0.1s</button>
+                            <button class="time-btn" onclick="adjustTime('end', 1.0)">+1.0s</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="editor-controls">
-                    <div class="time-inputs">
-                        <label>Start: <input type="text" id="editStartTime" value="0:00" readonly></label>
-                        <label>End: <input type="text" id="editEndTime" value="0:00" readonly></label>
+                
+                <!-- Visual Confirmation -->
+                <div class="download-confirmation">
+                    <div class="confirm-badge">📥 You will download:</div>
+                    <div class="confirm-times" id="confirmTimes">0:00.0 - 0:00.0</div>
+                    <div class="confirm-stats" id="confirmStats">
+                        <span class="stat">~<span id="wordCount">0</span> words</span>
+                        <span class="stat">~<span id="durationSec">0</span>s</span>
                     </div>
-                    <div class="editor-actions">
-                        <button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
-                        <button class="btn btn-primary" onclick="saveClipEdit()">Save Changes</button>
+                </div>
+                
+                <!-- Live Transcript Preview -->
+                <div class="preview-section">
+                    <h4>📝 Transcript Preview</h4>
+                    <div class="transcript-preview" id="transcriptPreview">
+                        <p style="color: #94a3b8; text-align: center; padding: 40px;">Loading preview...</p>
                     </div>
+                </div>
+                
+                <!-- Full Transcript with Segment Highlights -->
+                <div class="full-transcript-section">
+                    <h4>📋 Full Transcript (segments highlighted)</h4>
+                    <div class="full-transcript" id="fullTranscript" style="max-height: 250px; overflow-y: auto;">
+                    </div>
+                </div>
+                
+                <div class="editor-actions">
+                    <button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveClipEdit()">Save & Apply</button>
                 </div>
             </div>
         </div>
