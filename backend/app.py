@@ -1942,8 +1942,9 @@ def download_clip_video(job_id, clip_index):
 
         cmd = [
             'ffmpeg', '-y',
+            '-ss', str(start_sec),  # Input seek - fast but less accurate
             '-i', video_path,
-            '-ss', str(start_sec),
+            '-ss', '0',  # Fine-tune seek after input for precision
             '-t', str(duration),
             '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
             '-c:a', 'aac', '-b:a', '128k',

@@ -1211,7 +1211,7 @@
         
         async function downloadClip(clipIndex, jobId) {
             try {
-                showStatus(`⏳ Extracting clip ${clipIndex + 1}... (this may take a moment)`, 'processing');
+                showStatus(`⏳ Preparing your download... extracting clip ${clipIndex + 1} from video (this may take 10-30 seconds)`, 'processing');
                 
                 const response = await fetch(`${API_URL}/api/job/${jobId}/clip/${clipIndex}/download`);
                 
