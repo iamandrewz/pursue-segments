@@ -1940,15 +1940,15 @@ def download_clip_video(job_id, clip_index):
         
         print(f"[CLIP] Extracting {start_ts} ({start_sec}s) to {end_ts} ({end_sec}s), duration: {duration}s")
 
+        # FAST extraction using copy codec (no re-encoding)
+        # This is 10x faster than re-encoding with libx264
         cmd = [
             'ffmpeg', '-y',
-            '-ss', str(start_sec),  # Input seek - fast but less accurate
+            '-ss', str(start_sec),
             '-i', video_path,
-            '-ss', '0',  # Fine-tune seek after input for precision
             '-t', str(duration),
-            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-            '-c:a', 'aac', '-b:a', '128k',
-            '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+            '-c', 'copy',  # Copy codec - no re-encoding, just copy packets
+            '-movflags', '+faststart',
             output_path
         ]
 
